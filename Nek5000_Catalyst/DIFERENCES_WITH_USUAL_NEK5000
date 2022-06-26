@@ -1,0 +1,6 @@
+In core:
+We modify drive.f makenek.inc and makefile_template
+
+in core/3rdparty:
+we add nek_adios2 and Adios2.f
+we modify nek_insitu.f
