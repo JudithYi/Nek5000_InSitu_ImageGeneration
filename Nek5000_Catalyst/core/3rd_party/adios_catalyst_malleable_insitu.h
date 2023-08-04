@@ -11,10 +11,8 @@
 #include "nek_catalyst_async.h"
 #include "myCPPythonAdaptorAPI.h"
 
-
-extern "C"{
-    int adios_catalyst(MPI_Comm & newcomm, MPI_Comm & worldComm);
-}
+int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm, std::string enginePair, const int firstPair);
+//int adios_catalyst_run();
 
 #endif
 // HeaderTest-Exclude: adios_catalyst_melleable_inistu.h

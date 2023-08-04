@@ -169,12 +169,14 @@ c      COMMON /SCRCG/ DUMM10(LX1,LY1,LZ1,LELT,1)
       return
       end
 c-----------------------------------------------------------------------
-      subroutine nek_solve_malleable_insitu_first()
+      subroutine nek_solve_malleable_insitu_first(numInsitu)
 
       include 'SIZE'
       include 'TSTEP'
       include 'INPUT'
       include 'CTIMER'
+      integer numInsitu
+
       call nekgsync()
 
       if (instep.eq.0) then
@@ -195,12 +197,12 @@ c-----------------------------------------------------------------------
       ! start measurements
       dtmp = dnekgflops()
 
-      istep  = 0
+      istep  = iostep*numInsitu
       msteps = 1
 
       irstat = int(param(120))
 
-      do kstep=1,iostep,msteps
+      do kstep=numInsitu*iostep+1,(numInsitu+1)*iostep,msteps
          call nek__multi_advance(kstep,msteps)
          call check_ioinfo  
          call set_outfld
@@ -215,12 +217,13 @@ c-----------------------------------------------------------------------
       END
 
 c-----------------------------------------------------------------------
-      subroutine nek_solve_malleable_insitu
+      subroutine nek_solve_malleable_insitu(numInsitu)
 
       include 'SIZE'
       include 'TSTEP'
       include 'INPUT'
       include 'CTIMER'
+      integer numInsitu
 
       if (instep.eq.0) then
         if(nid.eq.0) write(6,'(/,A,/,A,/)') 
@@ -239,12 +242,12 @@ c-----------------------------------------------------------------------
 
       ! start measurements
 
-      istep  = iostep
+      istep  = iostep*numInsitu
       msteps = 1
 
       irstat = int(param(120))
 
-      do kstep=iostep+1,nsteps,msteps
+      do kstep=iostep*numInsitu+1,nsteps,msteps
          call nek__multi_advance(kstep,msteps)
          if(kstep.ge.nsteps) lastep = 1
          call check_ioinfo  

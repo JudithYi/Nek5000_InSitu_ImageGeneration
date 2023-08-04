@@ -42,7 +42,9 @@ std::vector<double> vVZ;
 std::vector<double> vP;
 std::vector<double> vT;
 std::vector<double> vBM1;
-
+std::vector<double>vP2;
+std::vector<int> vInsituCounter;
+adios2::StepStatus status; 
 
 // These are the variables read from global array
 adios2::Variable<double> p;
@@ -51,6 +53,7 @@ adios2::Variable<double> vy;
 adios2::Variable<double> vz;
 adios2::Variable<double> t;
 adios2::Variable<double> bm1;
+adios2::Variable<int>InsituCounter;
 
 adios2::Variable<int> init_int_vec1;
 adios2::Variable<double> init_double_vec1;
@@ -60,12 +63,12 @@ adios2::Variable<double> zm1;
 
 adios2::IO inIO;
 bool firstStep;
+MPI_Comm newcomm;
 
-int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
-
+int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm, std::string enginePair, const int firstPair){
+    
     startTotal = std::clock();
     startT = std::clock();
-    MPI_Comm newcomm;
     MPI_Comm_dup(comm_in, &newcomm);
     MPI_Comm_rank(worldComm, &world_rank);
     MPI_Comm_size(worldComm, &world_size);
@@ -78,17 +81,17 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
     adios2::ADIOS adios(configFile, newcomm);
 	int comm_f = MPI_Comm_c2f(newcomm);
     int comm_world_f = MPI_Comm_c2f(worldComm);
-    std::cout << "From reader: " << comm_f << " " << comm_world_f << std::endl;
+    std::cout << "From reader: " << comm_f << " " << comm_world_f << " " << enginePair << std::endl;
     // Reader opens insituMPI engine, for data transit
     inIO = adios.DeclareIO("reader");
     // The reader opens the global array where the writer
     // in the nek executable writes.
-    reader = inIO.Open("globalArray", adios2::Mode::Read, newcomm);
+    reader = inIO.Open(enginePair, adios2::Mode::Read, newcomm);
     //if(inIO.EngineType()=="InSituMPI")
     inIO.set_worldComm(&reader, &worldComm);
 
     // Define variables to know starts and counts, etc.
-    adios2::StepStatus status = reader.BeginStep();
+    status = reader.BeginStep();
     if (status != adios2::StepStatus::OK){
 	    std::cout << "Reader has not done begin step." << std::endl;
         reader.EndStep();
@@ -107,15 +110,7 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
         std::cout << int_vec1_size << " vs " << len_nek * nek_size << " \n Error: INT_CONST length not match" << std::endl;
         return 4;
     }
-    /*
-    if(!rank){
-        int_vec1_count = static_cast<std::size_t>(len_nek);
-	int_vec1_start = 0;
-    }else{
-        int_vec1_count = static_cast<std::size_t>((static_cast<int>(int_vec1_size) - len_nek) / (size-1));
-        int_vec1_start = static_cast<std::size_t>(rank - 1) * int_vec1_count + static_cast<std::size_t>(len_nek);
-    }
-    */
+
     int_vec1_count = static_cast<std::size_t>(len_nek * nek_size / size);
     int_vec1_start = static_cast<std::size_t>(rank) * int_vec1_count;
     init_int_vec1.SetSelection({{int_vec1_start}, {int_vec1_count}});
@@ -133,15 +128,7 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
         std::cout << double_vec1_size << " vs " << len_double_const_nek * nek_size << " \n Error: DOUBLE_CONST length not match" << std::endl;
         return 4;
     }
-    /*
-    if(!rank){
-        double_vec1_count = static_cast<std::size_t>(len_double_const_nek);
-        double_vec1_start = 0;
-    }else{
-        double_vec1_count = static_cast<std::size_t>((static_cast<int>(double_vec1_size) - len_double_const_nek) / (size-1));
-        double_vec1_start = static_cast<std::size_t>(rank-1) * double_vec1_count + static_cast<std::size_t>(len_double_const_nek);
-    }
-    */
+
     double_vec1_count = static_cast<std::size_t>(len_double_const_nek * nek_size / size);
     double_vec1_start = static_cast<std::size_t>(rank) * double_vec1_count;
     vDOUBLE_CONST.resize(double_vec1_count);
@@ -149,31 +136,7 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
     reader.Get<double>(init_double_vec1,vDOUBLE_CONST.data());
     reader.EndStep();
     reader.BeginStep();
-    //reader.PerformGets();
-    //reader.EndStep();
-    
-    /*
-    std::vector<int>vINT_CONST2(len_nek);
-    if(!rank) for(i=0;i<len_nek;++i){vINT_CONST2[i]=vINT_CONST[i];}
-    std::vector<double>vDOUBLE_CONST2(len_double_const_nek);
-    if(!rank) for(i=0;i<len_double_const_nek;++i){vDOUBLE_CONST2[i]=vDOUBLE_CONST[i];}
-    //if(!rank)std::cout << "Before bcast" << std::endl;
-    MPI_Bcast(vINT_CONST2.data(), len_nek, MPI_INT, 0, newcomm);
-    MPI_Bcast(vDOUBLE_CONST2.data(), len_double_const_nek, MPI_DOUBLE, 0, newcomm);
-    //if(!rank)std::cout << "After bcast" << std::endl;
 
-    lx1 = vINT_CONST2[0];
-    ly1 = vINT_CONST2[1];
-    lz1 = vINT_CONST2[2];
-    lx2 = vINT_CONST2[3];
-    ly2 = vINT_CONST2[4];
-    lz2 = vINT_CONST2[5];
-    nelgv = vINT_CONST2[6];
-    nelgt = vINT_CONST2[7];
-    iostep = vINT_CONST2[8];
-    dim = 3;
-    if(!vINT_CONST2[9]) dim = 2;
-    */
     lx1 = vINT_CONST[0];
     ly1 = vINT_CONST[1];
     lz1 = vINT_CONST[2];
@@ -189,8 +152,9 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
     nelt = 0;
     for(i = 0; i * size < nek_size; ++i){
     	nelv += vINT_CONST[i * len_nek + 6];
-	nelt += vINT_CONST[i * len_nek + 7];
+	    nelt += vINT_CONST[i * len_nek + 7];
     }
+
     lxyz1=lx1*ly1*lz1;
     lxyz2=lx2*ly2*lz2;
     dx12 = static_cast<int>((lx1 - lx2)/2);
@@ -231,16 +195,7 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
         return 8;
     }
     std::cout << rank << " : " << nelgv << " , " << nelbv << " , " << nelv << std::endl;
-    /*
-    status = reader.BeginStep();
-    if (status != adios2::StepStatus::OK){
-        reader.EndStep();
-        reader.Close();
-        MPI_Finalize();
-        return 3;
-    }
-    */
-    //total3 = static_cast<std::size_t>(lxyz1 * nelgt);
+
     xm1 = inIO.InquireVariable<double>("X");
     if(!xm1){
         std::cout << "Error: NO variable X found. Unable to proceed. \n Exiting. " << std::endl;
@@ -274,17 +229,7 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
     reader.Get<double>(ym1,vYM1.data());
     reader.Get<double>(zm1,vZM1.data());
     firstStep=true;
-    if(!rank)std::cout << "1st reader step" << std::endl;
-    /*
-    status = reader.BeginStep();
-    if (status != adios2::StepStatus::OK){
-        reader.EndStep();
-        reader.Close();
-        MPI_Finalize();
-        return 3;
-    }
-    */
-   
+    if(!rank)std::cout << "1st reader step" << std::endl;   
     p = inIO.InquireVariable<double>("P");
     if (!p){
         std::cout << "Error: NO variable P found. Unable to proceed. \n Exiting. " << std::endl;
@@ -331,12 +276,26 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
     start2 = static_cast<std::size_t>(lxyz2 * nelbv);
     count2 = static_cast<std::size_t>(lxyz2 * nelv);
 
+    InsituCounter = inIO.InquireVariable<int>("InsituCount");
+    if (!InsituCounter){
+        std::cout << "Error: NO variable InsituCount found. Unable to proceed. \n Exiting. " << std::endl;
+        return 4;
+    }
+    total4 = InsituCounter.Shape()[0];
+    if(total4 != static_cast<std::size_t>(nek_size)){
+         std::cout << total4 << " vs " << nek_size << " \n Error: InsituCounter length not match" << std::endl;
+        return 4;
+    }
+    count4 = static_cast<std::size_t>(nek_size/size);
+    start4 = count4 * static_cast<std::size_t>(rank);
+
     vP.resize(count2);
     vVX.resize(count);
     vVY.resize(count);
     vVZ.resize(count);
     vT.resize(count3);
     vBM1.resize(count3);
+    vInsituCounter.resize(count4);
 
     p.SetSelection({{start2}, {count2}});
     vx.SetSelection({{start}, {count}});
@@ -344,6 +303,7 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
     vz.SetSelection({{start}, {count}});
     t.SetSelection({{start3}, {count3}});
     bm1.SetSelection({{start3}, {count3}});
+    InsituCounter.SetSelection({{start4}, {count4}});
 
     reader.Get<double>(p, vP.data());
     reader.Get<double>(vx, vVX.data());
@@ -351,20 +311,51 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
     reader.Get<double>(vz, vVZ.data());
     reader.Get<double>(t, vT.data());
     reader.Get<double>(bm1, vBM1.data());
+    reader.Get<int>(InsituCounter, vInsituCounter.data());
     if(!rank)std::cout << "2nd reader step" << std::endl;
     reader.EndStep();
-    //myCPPythonAdaptorAPI::CoProcessorInitialize(&newcomm,NULL);
-    //catalyst_usrpipe();
 
     setupTime = (std::clock() - startT) / (double) CLOCKS_PER_SEC;
     insituTime = 0.0;
-    step = iostep;
+    
     std::cout << "Paraview initialization starts." << std::endl;
     myCPPythonAdaptorAPI::CoProcessorInitialize(&newcomm,NULL);
     std::cout << "Python initialization starts." << std::endl;
     catalyst_usrpipe();
     if(!rank) std::cout << "Initialization done." << std::endl;
-    std::vector<double>vP2(count, 0.0);
+    vP2.resize(count);
+
+    startT = std::clock();
+    for(i=0;i<nelv;++i){
+        for(li=0;li<lx2;++li){
+            for(lj=0;lj<ly2;++lj){
+                for(lk=0;lk<lz2;++lk){
+                    idx1=i*lxyz2+lz2*ly2*li+lz2*lj+lk;
+                    idx2=i*lxyz1+lz1*ly1*(li+dx12)+lz1*(lj+dy12)+lk+dz12;
+                    vP2[idx2]=vP[idx1];
+                }
+            }
+        }
+    }
+    step = iostep * vInsituCounter[0];
+    if(!rank) printf("vInsituCounter[0]=%d\n", vInsituCounter[0]);
+    simulation_time = simulation_start + static_cast<double>(step) * simulation_dt;
+    
+    requestdatadescription(&step, &simulation_time, &flag);
+    if(flag){
+        needtocreategrid(&flag);
+        creategrid(vXM1.data(), vYM1.data(), vZM1.data(), &lx1, &ly1, &lz1, &nelt, &dim);
+        add_scalar_field(vP2.data(), nameP);
+        add_vector_field(vVX.data(), vVY.data(), vVZ.data(), &dim, nameV);
+        add_scalar_field(vT.data(), nameT);
+        coprocess();
+    }
+   
+    insituTime += (std::clock() - startT) / (double) CLOCKS_PER_SEC;
+    if(firstPair){
+	int readerDone = 1;
+    	if(!rank) MPI_Send(&readerDone, 1, MPI_INT, 0, 0, worldComm);
+    }
     try{
     while(true){
         status = reader.BeginStep();
@@ -399,34 +390,11 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
         	std::cout << "Error: NO variable BM1 found. Unable to proceed. \n Exiting. " << std::endl;
         	return 4;
      	    }
-	    /*
-	    if(firstStep){
-	    	xm1 = inIO.InquireVariable<double>("X");
-    		if(!xm1){
-        	    std::cout << "Error: NO variable X found. Unable to proceed. \n Exiting. " << std::endl;
-        	    return 4;
-    		}
-    		ym1 = inIO.InquireVariable<double>("Y");
-    		if(!ym1){
-        	     std::cout << "Error: NO variable Y found. Unable to proceed. \n Exiting. " << std::endl;
-        	     return 4;
-    		}
-    		zm1 = inIO.InquireVariable<double>("Z");
-    		if(!zm1){
-        	    std::cout << "Error: NO variable Z found. Unable to proceed. \n Exiting. " << std::endl;
-      		    return 4;
-   		}
-	        	
-    	    	xm1.SetSelection({{start3},{count3}});
-    		ym1.SetSelection({{start3},{count3}});
-    		zm1.SetSelection({{start3},{count3}});
-		
-    		reader.Get<double>(xm1,vXM1.data(),adios2::Mode::Sync);
-    		reader.Get<double>(ym1,vYM1.data(),adios2::Mode::Sync);
-    		reader.Get<double>(zm1,vZM1.data(),adios2::Mode::Sync);
-		firstStep=false;
-	    }
-	    */
+            InsituCounter = inIO.InquireVariable<int>("InsituCount");
+            if (!InsituCounter){
+            std::cout << "Error: NO variable InsituCount found. Unable to proceed. \n Exiting. " << std::endl;
+            return 4;
+            }
 	    
             p.SetSelection({{start2}, {count2}});
             vx.SetSelection({{start}, {count}});
@@ -434,6 +402,7 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
             vz.SetSelection({{start}, {count}});
             t.SetSelection({{start3}, {count3}});
             bm1.SetSelection({{start3}, {count3}});
+            InsituCounter.SetSelection({{start4}, {count4}});
 	    
             reader.Get<double>(p, vP.data());
             reader.Get<double>(vx, vVX.data());
@@ -441,19 +410,22 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
             reader.Get<double>(vz, vVZ.data());
             reader.Get<double>(t, vT.data());
             reader.Get<double>(bm1, vBM1.data());
+            reader.Get<int>(InsituCounter, vInsituCounter.data());
             reader.EndStep();
             startT = std::clock();
-	    for(i=0;i<nelv;++i){
-	    	for(li=0;li<lx2;++li){
-		    for(lj=0;lj<ly2;++lj){
-		    	for(lk=0;lk<lz2;++lk){
-			    idx1=i*lxyz2+lz2*ly2*li+lz2*lj+lk;
-			    idx2=i*lxyz1+lz1*ly1*(li+dx12)+lz1*(lj+dy12)+lk+dz12;
-			    vP2[idx2]=vP[idx1];
-			}
-		    }
-		}
-	    }
+            for(i=0;i<nelv;++i){
+                for(li=0;li<lx2;++li){
+                    for(lj=0;lj<ly2;++lj){
+                        for(lk=0;lk<lz2;++lk){
+                            idx1=i*lxyz2+lz2*ly2*li+lz2*lj+lk;
+                            idx2=i*lxyz1+lz1*ly1*(li+dx12)+lz1*(lj+dy12)+lk+dz12;
+                            vP2[idx2]=vP[idx1];
+                        }
+                    }
+                }
+            }
+            step = iostep * vInsituCounter[0];
+	    if(!rank) std::cout << rank << ": " << vInsituCounter[0] << " " << step << std::endl;
             simulation_time = simulation_start + static_cast<double>(step) * simulation_dt;
             
 	    requestdatadescription(&step, &simulation_time, &flag);
@@ -466,7 +438,6 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
                 coprocess();
             }
             
-	    step += iostep;
             insituTime += (std::clock() - startT) / (double) CLOCKS_PER_SEC;
         }else if(status == adios2::StepStatus::EndOfStream){
             if(!rank) std::cout << "End of stream" << std::endl;
@@ -493,9 +464,12 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm){
         std::cout << "Exception, STOPPING PROGRAM from rank " << rank << "\n";
         std::cout << e.what() << "\n";
     }
+    
     totalTime = (std::clock() - startTotal) / (double) CLOCKS_PER_SEC;
     std::cout << "catalystSpace rank: " << rank << " in-situ time: " << insituTime << " s, total time: " << totalTime << " s." << std::endl;   
+    
     //MPI_Finalize();
     return 0;    
 }
+
 

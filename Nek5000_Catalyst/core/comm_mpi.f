@@ -672,7 +672,7 @@ c-----------------------------------------------------------------------
       include 'SIZE'
       include 'mpif.h'
 
-      call mpi_finalize (ierr_)
+      !call mpi_finalize (ierr_)
       call cexit(ierr)
  
       return

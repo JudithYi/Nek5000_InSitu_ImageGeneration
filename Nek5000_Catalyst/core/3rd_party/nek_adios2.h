@@ -8,6 +8,10 @@
 #include <ctime>
 #include <vector>
 
-void adios_MPI_set(MPI_Comm & comm, MPI_Comm & worldComm);
+void adios_writer_init(
+    MPI_Comm & comm,
+    MPI_Comm & worldComm, 
+    std::string engineName
+);
 
 #endif
