@@ -20,18 +20,22 @@ c-----------------------------------------------------------------------
 
       integer*8 ntags
 
-      call mpi_initialized(mpi_is_initialized, ierr)
+      !call mpi_initialized(mpi_is_initialized, ierr)
+      mpi_is_initialized = .true.
       if (.not.mpi_is_initialized) call mpi_init(ierr)
 
       call mpi_comm_dup(comm,newcommg,ierr)
       newcomm = newcommg
       nekcomm = newcommg 
+      !newcomm = comm
+      !nekcomm = comm 
 
       call mpi_comm_size(nekcomm,np_global,ierr)
       call mpi_comm_rank(nekcomm,nid_global,ierr)
 
       ! check upper tag size limit
-      call mpi_comm_get_attr(MPI_COMM_WORLD,MPI_TAG_UB,ntags,flag,ierr)
+      !call mpi_comm_get_attr(MPI_COMM_WORLD,MPI_TAG_UB,ntags,flag,ierr)
+      ntags = np_global
       if (ntags .lt. np_global) then
          if(nid_global.eq.0) write(6,*) 'ABORT: MPI_TAG_UB too small!'
          call exitt

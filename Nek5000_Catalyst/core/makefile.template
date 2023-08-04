@@ -35,6 +35,9 @@ ADIOS2=0
 ADIOS2_LFLAGS=
 ADIOS2_IFLAGS=
 
+MALLEABLE=0
+MALLEABLE_LFLAGS=
+
 CATALYST=0
 CATALYST_LFLAGS=
 CATALYST_IFLAGS=
@@ -47,7 +50,7 @@ PPS_C = $(patsubst %,-D%,$(PPS))
 PPS_C2 = $(patsubst %,-D%,$(PPS2))
 
 # CORE##########################################################################
-CORE = drive1.o drive2.o \
+CORE = drive1_malleable_insitu.o drive2.o \
 plan5.o \
 plan4.o bdry.o coef.o conduct.o connect1.o connect2.o \
 dssum.o edgec.o eigsolv.o gauss.o genxyz.o navier1.o makeq.o \
@@ -100,14 +103,20 @@ endif
 
 # ADIOS2 #####################################################################
 ifneq ($(ADIOS2),0)
-  ADIOS2O := adios2.o nek_adios2.o
+  ADIOS2O := adios2.o nek_adios2.o 
   USR_LFLAGS := ${USR_LFLAGS} $(ADIOS2_LFLAGS)
 endif
 
 # CATALYST #####################################################################
 ifneq ($(CATALYST),0)
-  CATALYSTO := catalyst.o nek_catalyst.o
+  CATALYSTO := catalyst.o nek_catalyst.o 
   USR_LFLAGS := ${USR_LFLAGS} $(CATALYST_LFLAGS)
+endif
+
+# MALLEABLE #####################################################################
+ifneq ($(MALLEABLE),0)
+  MALLEABLEO := adios2.o nek_adios2.o adios_catalyst_malleable_insitu.o myCPPythonAdaptorAPI.o nek_catalyst_async.o
+  USR_LFLAGS := ${USR_LFLAGS} $(MALLEABLE_LFLAGS)
 endif
 
 ifeq ($(MPI),0)
@@ -116,7 +125,7 @@ else
 	DUMMY:= $(shell rm -rf $S/mpif.h) 
 endif
 
-TMP1 = $(CORE) $(MXM) $(USR) $(COMM_MPI) $(VISITO) $(ADIOS2O) $(CATALYSTO)
+TMP1 = $(CORE) $(MXM) $(USR) $(COMM_MPI) $(VISITO) $(ADIOS2O) $(CATALYSTO) $(MALLEABLEO)
 
 ifeq ($(CMT),1)
 TMP1 += $(CMTCORE)
@@ -153,7 +162,8 @@ usrfile:
 	$(FC) $(FL2) $(VISITNEK_INCLUDES) -c $(CASEDIR)/${CASENAME}.f
 
 nek5000: lib usrfile
-	$(FC) $(FL2) -o ${BINNAME} $S/drive.f $(CASEDIR)/${CASENAME}.o ${LIBNAME} $(USR_LFLAGS) $(LDFLAGS)
+	$(CXX) $(cFL2) $(ADIOS2_IFLAGS) $(CATALYST_IFLAGS) -o ${BINNAME} $S/drive.cpp $(CASEDIR)/${CASENAME}.o ${LIBNAME} $(USR_LFLAGS) $(LDFLAGS)
+#	$(FC) $(FL2) -o ${BINNAME} $S/drive.f $(CASEDIR)/${CASENAME}.o ${LIBNAME} $(USR_LFLAGS) $(LDFLAGS)
 	@if test -f ${BINNAME}; then \
         echo ""; \
         echo "$(NEK_WARN)"; \
@@ -187,6 +197,7 @@ $(NOBJS) : ./SIZE
 
 # NEK CORE     ##################################################################
 $(OBJDIR)/drive1.o	:$S/drive1.f;			$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/drive1_malleable_insitu.o	:$S/drive1_malleable_insitu.f;	$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/drive2.o	:$S/drive2.f;			$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/prepost.o	:$S/prepost.f;			$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/postpro.o	:$S/postpro.f;			$(FC) -c $(FL2) $< -o $@
@@ -289,6 +300,9 @@ $(OBJDIR)/visit.o        :$S/3rd_party/visit.f;		$(FC) -c $(VISIT_IFLAGS) $(FL2)
 $(OBJDIR)/adios2.o     :$S/3rd_party/adios2.f;	$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/nek_adios2.o :$S/3rd_party/nek_adios2.cpp;$(CXX)  -c $(cFL22) $(ADIOS2_IFLAGS) $< -o $@
 $(OBJDIR)/catalyst.o     :$S/3rd_party/catalyst.f;	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/myCPPythonAdaptorAPI.o :$S/3rd_party/myCPPythonAdaptorAPI.cpp;$(CXX)  -c $(cFL22) $(CATALYST_IFLAGS) $< -o $@
+$(OBJDIR)/nek_catalyst_async.o :$S/3rd_party/nek_catalyst_async.cpp;$(CXX)  -c $(cFL22) $(ADIOS2_IFLAGS) $(CATALYST_IFLAGS) $< -o $@
+$(OBJDIR)/adios_catalyst_malleable_insitu.o :$S/3rd_party/adios_catalyst_malleable_insitu.cpp;$(CXX)  -c $(cFL22) $(ADIOS2_IFLAGS) $(CATALYST_IFLAGS) $< -o $@
 $(OBJDIR)/nek_catalyst.o :$S/3rd_party/nek_catalyst.cxx;$(CXX)  -c $(cFL2) $(CATALYST_IFLAGS) $< -o $@
 $(OBJDIR)/nek_in_situ.o  :$S/3rd_party/nek_in_situ.f;	$(FC) -c $(VISIT_IFLAGS) $(FL2) $< -o $@
 $(OBJDIR)/finiparser.o   :$S/3rd_party/finiparser.c;    $(CC)  -c $(cFL2) $(JL) $< -o $@

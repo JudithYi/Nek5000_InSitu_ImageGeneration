@@ -443,6 +443,7 @@ sed -e "s:^FC[ ]*=.*:FC=$FC:" \
 -e "s/^VISIT[ ]*=.*/VISIT=${VISIT}/" \
 -e "s/^ADIOS2[ ]*=.*/ADIOS2:=${ADIOS2}/" \
 -e "s/^CATALYST[ ]*=.*/CATALYST:=${CATALYST}/" \
+-e "s/^MALLEABLE[ ]*=.*/MALLEABLE:=${MALLEABLE}/" \
 -e "s:^USR[ ]*=.*:USR=$USR:" \
 -e "s:^USR_LFLAGS[ ]*=.*:USR_LFLAGS=$USR_LFLAGS:" \
 -e "s:^S[ ]*=.*:S=${NEK_SOURCE_ROOT}/core:" \
@@ -499,6 +500,21 @@ if [ $CATALYST -ne 0 ]; then
       -e "s|^CATALYST_IFLAGS[ ]*=.*|CATALYST_IFLAGS:=${CATALYST_INCS}|" \
       -e "s|^CATALYST_LFLAGS[ ]*=.*|CATALYST_LFLAGS:=${CATALYST_LIBS} -lstdc++|" \
       -e "s/^PPS[ ]*=.*/PPS=${PPLIST} CATALYST/" \
+      .makefile > .makefile.tmp
+
+  mv .makefile.tmp .makefile
+  echo ""
+fi
+
+if [ $MALLEABLE -ne 0 ]; then
+   echo ""
+   echo "Activate Paraview Catalyst instrumentation"
+
+  sed -e "s/^MALLEABLE[ ]*=.*/MALLEABLE:=${MALLEABLE}/" \
+      -e "s|^CATALYST_IFLAGS[ ]*=.*|CATALYST_IFLAGS:=${CATALYST_INCS}|" \
+      -e "s|^ADIOS2_IFLAGS[ ]*=.*|ADIOS2_IFLAGS:=${ADIOS2_INCS}|" \
+      -e "s|^MALLEABLE_LFLAGS[ ]*=.*|MALLEABLE_LFLAGS:=${MALLEABLE_LIBS} -lstdc++|" \
+      -e "s/^PPS[ ]*=.*/PPS=${PPLIST} MALLEABLE/" \
       .makefile > .makefile.tmp
 
   mv .makefile.tmp .makefile

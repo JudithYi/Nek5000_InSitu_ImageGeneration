@@ -1,11 +1,14 @@
 c-----------------------------------------------------------------------
-      subroutine in_situ_init()
+      subroutine in_situ_init(worldComm)
+      integer worldComm
 #ifdef VISIT
       call visit_init()
 #elif CATALYST
       call catalyst_init()
 #elif ADIOS2
       call adios2_init()
+#elif MALLEABLE
+      call adios2_init_malleable(worldComm)
 #endif
       end
 c-----------------------------------------------------------------------
@@ -16,6 +19,8 @@ c-----------------------------------------------------------------------
       call catalyst_process()
 #elif ADIOS2
       call adios2_write()
+#elif MALLEABLE
+      call adios2_write()
 #endif
       end
 c-----------------------------------------------------------------------
@@ -25,6 +30,8 @@ c-----------------------------------------------------------------------
 #elif CATALYST
       call catalyst_end()
 #elif ADIOS2
+      call adios2_end()
+#elif MALLEABLE
       call adios2_end()
 #endif
       end
