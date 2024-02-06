@@ -28,24 +28,23 @@ int main(int argc, char* argv[]){
     int colour;
     std::vector<int> colours;
     int comm_f;
-    int original_rank, original_size;
+    int world_rank, world_size;
     int cores_per_socket = std::stoi(argv[1]);
     int cores_in_situ = std::stoi(argv[2]);
     int num_groups = std::stoi(argv[3]);
-    colour.resize(num_groups);
+    colours.resize(num_groups);
     int i;
     MPI_Init(&argc, &argv);
-    MPI_Comm comm;
-    MPI_Comm_rank(MPI_COMM_WORLD, &original_rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &original_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    if(original_rank%cores_per_socket<num_groups){
+    if(world_rank%cores_per_socket>num_groups){
         colour = num_groups;
         for(i = 0; i < num_groups; ++i){
             colours[i] = 1;
         }
     }else{
-        colour = original_rank%cores_per_socket;
+        colour = world_rank%cores_per_socket;
         for(i = 0; i < num_groups; ++i){
             colours[i] = 0;
         }
@@ -67,7 +66,7 @@ int main(int argc, char* argv[]){
         enginePair = "globalArray_";
 	    enginePair.append(std::to_string(colour));
 	    std::replace(enginePair.begin(), enginePair.end(), '/', '_');
-        if(!original_rank) std::cout << "Local rank: " << original_rank << ": Reader "<< enginePair <<std::endl;
+        if(!world_rank) std::cout << "Local rank: " << world_rank << ": Reader "<< enginePair <<std::endl;
 
         /*After first step of the first writer and reader pair, rank 0 in reader would send back to writer 0 to inform it this reader can take new job again.*/
         adios_catalyst(comm, comm_reader, enginePair, 0);
@@ -85,7 +84,7 @@ int main(int argc, char* argv[]){
             enginePair = "globalArray_";
             enginePair.append(std::to_string(i));
             std::replace(enginePair.begin(), enginePair.end(), '/', '_');
-            if(!original_rank) std::cout << "Local rank: " << original_rank << ": Writer "<< enginePair << std::endl;
+            if(!world_rank) std::cout << "Local rank: " << world_rank << ": Writer "<< enginePair << std::endl;
             adios_writer_init(comm, comm_writer[i], enginePair);
 		    int worldComm_f = MPI_Comm_c2f(comm_writer[i]);
 		    in_situ_init_(&worldComm_f);
