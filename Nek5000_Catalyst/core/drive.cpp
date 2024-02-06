@@ -56,7 +56,7 @@ int main(int argc, char* argv[]){
 
     /* reader code */
     if(colour != num_groups){
-        comm_writer.resize(1);
+	    comm_writer.push_back(MPI_COMM_NULL);
         for(i = 0; i < colour; ++i){
             MPI_Comm_split(MPI_COMM_WORLD, colours[i], world_rank, &comm_writer[0]);
         }
@@ -80,6 +80,8 @@ int main(int argc, char* argv[]){
             nek_solve_malleable_insitu_first_(&i);
 	        comm_writer.push_back(MPI_COMM_NULL);
             MPI_Comm_split(MPI_COMM_WORLD, colours[i], world_rank, &comm_writer[i]);
+        }
+        for(i = 0; i < num_groups; ++i){
             enginePair = "globalArray_";
             enginePair.append(std::to_string(i));
             std::replace(enginePair.begin(), enginePair.end(), '/', '_');
