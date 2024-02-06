@@ -61,6 +61,7 @@ adios2::Variable<double> xm1;
 adios2::Variable<double> ym1;
 adios2::Variable<double> zm1;
 
+adios2::ADIOS adios;
 adios2::IO inIO;
 bool firstStep;
 MPI_Comm newcomm;
@@ -350,14 +351,15 @@ int adios_catalyst_init(MPI_Comm & comm_in, MPI_Comm & worldComm, std::string en
         add_scalar_field(vT.data(), nameT);
         coprocess();
     }
-}
-
-int adios_catalyst(){
-    insituTime += (std::clock() - startT) / (double) CLOCKS_PER_SEC;
     if(firstPair){
 	int readerDone = 1;
     	if(!rank) MPI_Send(&readerDone, 1, MPI_INT, 0, 0, worldComm);
     }
+    return 0;
+}
+
+int adios_catalyst(){
+    insituTime += (std::clock() - startT) / (double) CLOCKS_PER_SEC;
     try{
     while(true){
         status = reader.BeginStep();
