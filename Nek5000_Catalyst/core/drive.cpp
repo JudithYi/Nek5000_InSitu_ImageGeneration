@@ -60,17 +60,16 @@ int main(int argc, char* argv[]){
             MPI_Comm_split(MPI_COMM_WORLD, colours[i], world_rank, &comm_writer[0]);
         }
         MPI_Comm_split(MPI_COMM_WORLD, colours[colour], world_rank, &comm_reader);
-        for(i = colour+1; i < num_groups; ++i){
-            MPI_Comm_split(MPI_COMM_WORLD, colours[i], world_rank, &comm_writer[0]);
-        }
         enginePair = "globalArray_";
 	    enginePair.append(std::to_string(colour));
 	    std::replace(enginePair.begin(), enginePair.end(), '/', '_');
-        if(!world_rank) std::cout << "Local rank: " << world_rank << ": Reader "<< enginePair <<std::endl;
-
+        std::cout << "Local rank: " << world_rank << ": Reader "<< enginePair <<std::endl;
+        adios_catalyst_init(comm, comm_reader, enginePair, 0);
+        for(i = colour+1; i < num_groups; ++i){
+            MPI_Comm_split(MPI_COMM_WORLD, colours[i], world_rank, &comm_writer[0]);
+        }
+        adios_catalyst();
         /*After first step of the first writer and reader pair, rank 0 in reader would send back to writer 0 to inform it this reader can take new job again.*/
-        adios_catalyst(comm, comm_reader, enginePair, 0);
-
     }else{ 
     /*Here starts the writer code*/
         comm_f = MPI_Comm_c2f(comm);
@@ -79,15 +78,13 @@ int main(int argc, char* argv[]){
             nek_solve_malleable_insitu_first_(&i);
 	        comm_writer.push_back(MPI_COMM_NULL);
             MPI_Comm_split(MPI_COMM_WORLD, colours[i], world_rank, &comm_writer[i]);
-        }
-        for(i = 0; i < num_groups; ++i){
             enginePair = "globalArray_";
             enginePair.append(std::to_string(i));
             std::replace(enginePair.begin(), enginePair.end(), '/', '_');
-            if(!world_rank) std::cout << "Local rank: " << world_rank << ": Writer "<< enginePair << std::endl;
-            adios_writer_init(comm, comm_writer[i], enginePair);
+            std::cout << "Local rank: " << world_rank << ": Writer "<< enginePair << std::endl;
 		    int worldComm_f = MPI_Comm_c2f(comm_writer[i]);
 		    in_situ_init_(&worldComm_f);
+            adios_writer_init(comm, comm_writer[i], enginePair);
         }
         nek_solve_malleable_insitu_(&num_groups);
 		nek_end_();

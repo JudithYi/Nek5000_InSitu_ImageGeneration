@@ -65,7 +65,7 @@ adios2::IO inIO;
 bool firstStep;
 MPI_Comm newcomm;
 
-int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm, std::string enginePair, const int firstPair){
+int adios_catalyst_init(MPI_Comm & comm_in, MPI_Comm & worldComm, std::string enginePair, const int firstPair){
     
     startTotal = std::clock();
     startT = std::clock();
@@ -78,7 +78,7 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm, std::string engineP
     MPI_Comm_size(newcomm, &size);
     nek_size=world_size-size;
     std::string configFile="config/config.xml";
-    adios2::ADIOS adios(configFile, newcomm);
+    adios = adios2::ADIOS(configFile, newcomm);
 	int comm_f = MPI_Comm_c2f(newcomm);
     int comm_world_f = MPI_Comm_c2f(worldComm);
     std::cout << "From reader: " << comm_f << " " << comm_world_f << " " << enginePair << std::endl;
@@ -350,7 +350,9 @@ int adios_catalyst(MPI_Comm & comm_in, MPI_Comm & worldComm, std::string engineP
         add_scalar_field(vT.data(), nameT);
         coprocess();
     }
-   
+}
+
+int adios_catalyst(){
     insituTime += (std::clock() - startT) / (double) CLOCKS_PER_SEC;
     if(firstPair){
 	int readerDone = 1;
