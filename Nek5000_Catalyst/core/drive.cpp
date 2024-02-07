@@ -38,7 +38,7 @@ int main(int argc, char* argv[]){
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    if(world_rank%cores_per_socket>num_groups){
+    if(world_rank%cores_per_socket>=num_groups){
         colour = num_groups;
         for(i = 0; i < num_groups; ++i){
             colours[i] = 1;
@@ -50,7 +50,7 @@ int main(int argc, char* argv[]){
         }
         colours[colour] = 1;
     }
-    
+    std::cout << "Rank = " << world_rank << " : colour = " << colour << std::endl;
     MPI_Comm_split(MPI_COMM_WORLD, colour, world_rank, &comm);
 
     /* reader code */
@@ -73,19 +73,20 @@ int main(int argc, char* argv[]){
     }else{ 
     /*Here starts the writer code*/
         comm_f = MPI_Comm_c2f(comm);
-	    nek_init_malleable_insitu_(&comm_f);
+	nek_init_malleable_insitu_(&comm_f);
         for(i = 0; i < num_groups; ++i){
             nek_solve_malleable_insitu_first_(&i);
-	        comm_writer.push_back(MPI_COMM_NULL);
+	    comm_writer.push_back(MPI_COMM_NULL);
             MPI_Comm_split(MPI_COMM_WORLD, colours[i], world_rank, &comm_writer[i]);
             enginePair = "globalArray_";
             enginePair.append(std::to_string(i));
             std::replace(enginePair.begin(), enginePair.end(), '/', '_');
             std::cout << "Local rank: " << world_rank << ": Writer "<< enginePair << std::endl;
-		    int worldComm_f = MPI_Comm_c2f(comm_writer[i]);
-		    in_situ_init_(&worldComm_f);
+	    int worldComm_f = MPI_Comm_c2f(comm_writer[i]);
+		   
             adios_writer_init(comm, comm_writer[i], enginePair);
-        }
+            in_situ_init_(&worldComm_f);
+	}
         nek_solve_malleable_insitu_(&num_groups);
 		nek_end_();
     }
