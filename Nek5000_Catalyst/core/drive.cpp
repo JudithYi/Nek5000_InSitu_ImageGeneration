@@ -38,13 +38,13 @@ int main(int argc, char* argv[]){
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    if(world_rank%cores_per_socket>=num_groups){
+    if(world_rank%cores_per_socket>=num_groups*cores_in_situ){
         colour = num_groups;
         for(i = 0; i < num_groups; ++i){
             colours[i] = 1;
         }
     }else{
-        colour = world_rank%cores_per_socket;
+        colour = static_cast<int>(world_rank%cores_per_socket/cores_in_situ);
         for(i = 0; i < num_groups; ++i){
             colours[i] = 0;
         }
@@ -73,10 +73,10 @@ int main(int argc, char* argv[]){
     }else{ 
     /*Here starts the writer code*/
         comm_f = MPI_Comm_c2f(comm);
-	nek_init_malleable_insitu_(&comm_f);
+	    nek_init_malleable_insitu_(&comm_f);
         for(i = 0; i < num_groups; ++i){
             nek_solve_malleable_insitu_first_(&i);
-	    comm_writer.push_back(MPI_COMM_NULL);
+	        comm_writer.push_back(MPI_COMM_NULL);
             MPI_Comm_split(MPI_COMM_WORLD, colours[i], world_rank, &comm_writer[i]);
             enginePair = "globalArray_";
             enginePair.append(std::to_string(i));
