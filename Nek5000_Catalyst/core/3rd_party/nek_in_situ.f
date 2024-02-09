@@ -1,6 +1,6 @@
 c-----------------------------------------------------------------------
-      subroutine in_situ_init(worldComm)
-      integer worldComm
+      subroutine in_situ_init(type_index)
+      integer type_index
 #ifdef VISIT
       call visit_init()
 #elif CATALYST
@@ -8,7 +8,7 @@ c-----------------------------------------------------------------------
 #elif ADIOS2
       call adios2_init()
 #elif MALLEABLE
-      call adios2_init_malleable(worldComm)
+      call adios2_init_malleable(type_index)
 #endif
       end
 c-----------------------------------------------------------------------

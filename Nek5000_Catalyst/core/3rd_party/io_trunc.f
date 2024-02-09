@@ -18,7 +18,6 @@
       ! You might need to start in timestep 1 because the intialization
       ! is done after user check is called in step 0. So maybe fix that 
       ! before proceeding to do anything regarding post processing
-#ifdef LOSS
       if (istep.eq.1) then
               if (ifscompress)   call compress_inputs()
               call sleep(10) 
@@ -27,7 +26,7 @@
       endif 
 
       if (ifinsitucompress) call trunc_data() 
-#endif
+
       return
       end subroutine
 !
@@ -455,11 +454,11 @@ c       write debugging values
 c       ===============================================
 c       Perform lossless compression of truncated data
 c       ===============================================
-#ifdef LOSS
+
         !Write the fields into a file
-        call adios2_update(lglel,pm1, vx_hat_trc, 
-     &   vy_hat_trc, vz_hat_trc, t)
-#endif
+        call adios2_update_lossy(lglel,pm1, vx_hat_trc, 
+     &   vy_hat_trc, vz_hat_trc, t, 1)
+
         enddo
 
       return
@@ -617,11 +616,10 @@ c       ========================================
 c       Fill the pressure array with zeros, just in case       
         call rzero(pm1,lx1*ly1*lz1*lelt)
 c       Adios writes the pressure in mesh 1, so read it in pm1 
-#ifdef LOSS
         call adios2_read(lglelr,pm1,vx_hat_trc,vy_hat_trc,vz_hat_trc,
      &                   nvals,nelv,nelb,
      &                   nelgv,nelgt,nekcomm,trim(fname))
-#endif
+
 
 c       Map the pressure to mesh 2 before transforming to phys space
 c       copy the corresponding entries from pm1 to prhat
@@ -1018,11 +1016,11 @@ c ----------------------------------------------------------
 c       =============================================
 c       Perform the lossless compression with ADIOS2
 c       =============================================
-#ifdef LOSS
+
         !pm1 is the truncated coefficients mapped into velocity mesh
-        call adios2_update(lglel,pm1, vx_hat_trc, 
-     &   vy_hat_trc, vz_hat_trc, t)
-#endif
+        call adios2_update_lossy(lglel,pm1, vx_hat_trc, 
+     &   vy_hat_trc, vz_hat_trc, t, 1)
+
       endif    
 
 c     ===================
@@ -1053,11 +1051,10 @@ c       ========================================
 c       fill the pressure array with zeros, just in case       
         call rzero(pm1,lx1*ly1*lz1*lelt)
 c       Adios writes the pressure in mesh 1, so read it in pm1 
-#ifdef LOSS
         call adios2_read(lglelr,pm1,vx_hat_trc,vy_hat_trc,vz_hat_trc,
      &                   nvals,nelv,nelb,
      &                   nelgv,nelgt,nekcomm,trim(fname))
-#endif
+
 c       Map the pressure to mesh 2 before transforming to phys space
 c       copy the corresponding entries from pm1 to prhat
         do e=1,nelv

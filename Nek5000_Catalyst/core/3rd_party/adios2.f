@@ -30,7 +30,7 @@ c-------------------------------------------
 c-------------------------------------------
 c       Initialization 
 c-------------------------------------------
-      subroutine adios2_init_malleable(worldComm)
+      subroutine adios2_init_malleable(type_index)
       implicit none
       include 'SIZE'
       include 'INPUT'
@@ -40,7 +40,7 @@ c-------------------------------------------
       include 'TSTEP'
       include 'RESTART'
       include 'PARALLEL'
-      integer worldComm
+      integer type_index
       integer nid_,np_,nekcomm
       common /nekmpi/ nid_,np_,nekcomm
       call adios2_setup_async(
@@ -54,7 +54,7 @@ c-------------------------------------------
      &xm1,ym1,zm1,
      &pr,vx,vy,vz,
      &t,bm1,
-     &nekcomm,worldComm)
+     &nekcomm,type_index)
       end
 
 c-------------------------------------------
@@ -68,10 +68,10 @@ c-------------------------------------------
       include 'MASS'
       include 'GEOM'
       include 'TSTEP'
-      if(ifoutfld) call adios2_update(
+      call adios2_update(
      &xm1,ym1,zm1,
      &pr,vx,vy,
-     &vz,t,bm1)
+     &vz,t,bm1, 0)
       end
 c-------------------------------------------
 c       Finalization 

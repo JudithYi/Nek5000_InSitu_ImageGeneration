@@ -17,7 +17,7 @@
 #include "myCPPythonAdaptorAPI.h"
 
 
-void catalyst_usrpipe();
+void catalyst_usrpipe(char* name, int length=9);
 
 void creategrid(const double *x, const double *y, const double *z,
 			    const int *lx1, const int *ly1, const int *lz1, 

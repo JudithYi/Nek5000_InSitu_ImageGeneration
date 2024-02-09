@@ -50,7 +50,7 @@ PPS_C = $(patsubst %,-D%,$(PPS))
 PPS_C2 = $(patsubst %,-D%,$(PPS2))
 
 # CORE##########################################################################
-CORE = drive1_malleable_insitu.o drive2.o \
+CORE = drive1_insitu.o drive2.o \
 plan5.o \
 plan4.o bdry.o coef.o conduct.o connect1.o connect2.o \
 dssum.o edgec.o eigsolv.o gauss.o genxyz.o navier1.o makeq.o \
@@ -197,7 +197,7 @@ $(NOBJS) : ./SIZE
 
 # NEK CORE     ##################################################################
 $(OBJDIR)/drive1.o	:$S/drive1.f;			$(FC) -c $(FL2) $< -o $@
-$(OBJDIR)/drive1_malleable_insitu.o	:$S/drive1_malleable_insitu.f;	$(FC) -c $(FL2) $< -o $@
+$(OBJDIR)/drive1_insitu.o	:$S/drive1_insitu.f;	$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/drive2.o	:$S/drive2.f;			$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/prepost.o	:$S/prepost.f;			$(FC) -c $(FL2) $< -o $@
 $(OBJDIR)/postpro.o	:$S/postpro.f;			$(FC) -c $(FL2) $< -o $@

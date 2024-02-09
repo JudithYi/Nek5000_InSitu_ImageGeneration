@@ -2,11 +2,12 @@
 
 vtkUnstructuredGrid *grid = NULL;
 
-void catalyst_usrpipe(){
-	int length = 9;
-	char name[] ="pipe.py";
+void catalyst_usrpipe(char* name, int length){
+	//int length = 9;
+	//char name[] ="pipe.py";
 	coprocessoraddpythonscript(name, &length);
 }
+
 
 void creategrid(const double *x, const double *y, const double *z,
 			    const int *lx1, const int *ly1, const int *lz1, 

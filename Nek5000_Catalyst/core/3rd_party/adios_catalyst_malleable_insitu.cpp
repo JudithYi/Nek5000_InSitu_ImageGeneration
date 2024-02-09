@@ -66,7 +66,13 @@ adios2::IO inIO;
 bool firstStep;
 MPI_Comm newcomm;
 
-int adios_catalyst_init(MPI_Comm & comm_in, MPI_Comm & worldComm, std::string enginePair, const int firstPair){
+int adios_catalyst_init(
+    MPI_Comm & comm_in, 
+    MPI_Comm & worldComm, 
+    std::string enginePair, 
+    const int firstPair,
+    const int group
+){
     
     startTotal = std::clock();
     startT = std::clock();
@@ -319,10 +325,20 @@ int adios_catalyst_init(MPI_Comm & comm_in, MPI_Comm & worldComm, std::string en
     setupTime = (std::clock() - startT) / (double) CLOCKS_PER_SEC;
     insituTime = 0.0;
     
-    std::cout << "Paraview initialization starts." << std::endl;
+    if(!rank) std::cout << "Paraview initialization starts." << std::endl;
     myCPPythonAdaptorAPI::CoProcessorInitialize(&newcomm,NULL);
-    std::cout << "Python initialization starts." << std::endl;
-    catalyst_usrpipe();
+    if(!rank) std::cout << "Python initialization starts." << std::endl;
+    std::string s = "pipe" + std::to_string(group) + ".py"; 
+  
+    const int py_length = s.length(); 
+  
+    // declaring character array (+1 for null terminator) 
+    char* char_array = new char[py_length + 1]; 
+    
+    catalyst_usrpipe(char_array, py_length+1);
+    
+    delete char_array;
+
     if(!rank) std::cout << "Initialization done." << std::endl;
     vP2.resize(count);
 
@@ -338,19 +354,10 @@ int adios_catalyst_init(MPI_Comm & comm_in, MPI_Comm & worldComm, std::string en
             }
         }
     }
-    step = iostep * vInsituCounter[0];
-    if(!rank) printf("vInsituCounter[0]=%d\n", vInsituCounter[0]);
+    step = vInsituCounter[0];
+    // if(!rank) printf("vInsituCounter[0]=%d\n", vInsituCounter[0]);
     simulation_time = simulation_start + static_cast<double>(step) * simulation_dt;
     
-    requestdatadescription(&step, &simulation_time, &flag);
-    if(flag){
-        needtocreategrid(&flag);
-        creategrid(vXM1.data(), vYM1.data(), vZM1.data(), &lx1, &ly1, &lz1, &nelt, &dim);
-        add_scalar_field(vP2.data(), nameP);
-        add_vector_field(vVX.data(), vVY.data(), vVZ.data(), &dim, nameV);
-        add_scalar_field(vT.data(), nameT);
-        coprocess();
-    }
     if(firstPair){
 	int readerDone = 1;
     	if(!rank) MPI_Send(&readerDone, 1, MPI_INT, 0, 0, worldComm);
@@ -428,11 +435,11 @@ int adios_catalyst(){
                     }
                 }
             }
-            step = iostep * vInsituCounter[0];
-	    if(!rank) std::cout << rank << ": " << vInsituCounter[0] << " " << step << std::endl;
+            step = vInsituCounter[0];
+	        if(!rank) std::cout << rank << ": " << vInsituCounter[0] << " " << step << std::endl;
             simulation_time = simulation_start + static_cast<double>(step) * simulation_dt;
             
-	    requestdatadescription(&step, &simulation_time, &flag);
+	        requestdatadescription(&step, &simulation_time, &flag);
             if(flag){
                 needtocreategrid(&flag);
                 creategrid(vXM1.data(), vYM1.data(), vZM1.data(), &lx1, &ly1, &lz1, &nelt, &dim);

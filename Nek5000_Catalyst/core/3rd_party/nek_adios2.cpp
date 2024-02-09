@@ -13,7 +13,7 @@ std::size_t total4, start4, count4;
 std::size_t init_total, init_start, init_count;
 adios2::ADIOS adios;
 adios2::IO io;
-std::vector<adios2::Engine> writer;
+std::vector<std::vector<adios2::Engine>> writer;
 adios2::Variable<int> init_int_const;
 adios2::Variable<double> init_double_const;
 std::vector<int> vINT;
@@ -35,34 +35,60 @@ std::clock_t startTotal;
 int rank, size, i;
 bool if3d;
 bool firstStep;
-int writer_num = 0;
-int insituCount = 1;
-int world_rank, world_size, insitu_size;
+std::vector<int> writer_num;
+std::vector<int> insituCount;
+std::vector<int> stepCount;
+std::vector<int> world_size;
+std::vector<int> insitu_size;
+std::vector<int> insitu_fre;
+int adios_init;
+int type_num = 0;
+
+void init_multiple_type(const int type_num_in){
+    type_num = type_num_in;
+    writer_num.resize(type_num);
+    insituCount.resize(type_num);
+    world_size.resize(type_num);
+    insitu_size.resize(type_num);
+    insitu_fre.resize(type_num);
+    stepCount.resize(type_num);
+    writer.resize(type_num);
+    for(i=0;i<type_num;++i){
+        writer_num[i] = 0;
+        insituCount[i] = 0;
+        stepCount[i] = 0;
+        insitu_fre[i] = 0;
+    }
+    adios_init = 0;
+}
 
 void adios_writer_init(
     MPI_Comm & comm,
     MPI_Comm & worldComm, 
-    std::string engineName
+    std::string engineName,
+    const int iostep_in,
+    const int type_index
 ){  
-    if(writer_num == 0){
-	startTotal = std::clock();
-        std::string configFile="config/config.xml";
-        MPI_Comm_rank(worldComm, &world_rank);
-        MPI_Comm_size(worldComm, &world_size);
-        //MPI_Comm_split(worldComm, colour, world_rank, &comm);
+    if(adios_init == 0){
         adios = adios2::ADIOS(configFile, comm);
-	io = adios.DeclareIO("writer");
-        int	worldComm_f = MPI_Comm_c2f(worldComm);
-        int comm_f = MPI_Comm_c2f(comm);
-        std::cout << "From writer[" << writer_num << "]: " << comm_f << " " << worldComm_f << " " << engineName << std::endl;
+	    io = adios.DeclareIO("writer");
         MPI_Comm_rank(comm, &rank);
         MPI_Comm_size(comm, &size);
-        insitu_size = world_size - size;
     }
-    writer.resize(writer_num+1);
-    writer[writer_num] = io.Open(engineName, adios2::Mode::Write,comm);
+    if(writer_num[type_index] == 0){
+	    startTotal = std::clock();
+        std::string configFile="config/config.xml";
+        MPI_Comm_size(worldComm, &world_size[type_index]);
+        // int	worldComm_f = MPI_Comm_c2f(worldComm);
+        // int comm_f = MPI_Comm_c2f(comm);
+        // std::cout << "From writer[" << writer_num << "]: " << comm_f << " " << worldComm_f << " " << engineName << std::endl;
+        insitu_size[type_index] = world_size[type_index] - size;
+        insitu_fre[type_index] = iostep_in;
+    }
+    writer[type_index].resize(writer_num[type_index]+1);
+    writer[type_index][writer_num[type_index]] = io.Open(engineName, adios2::Mode::Write,comm);
     //if(io.EngineType()=="InSituMPI")
-    io.set_worldComm(&writer[writer_num],&worldComm);
+    io.set_worldComm(&writer[type_index][writer_num[type_index]],&worldComm);
 }
 
 extern "C" void adios2_setup_async_(
@@ -91,11 +117,12 @@ extern "C" void adios2_setup_async_(
     const double *w,
     const double *tem,
     const double *bm,
-    const int *comm_int,
-    const int *world_comm_int
+    const int *comm_int
+    const int *type_idx
 ){
     //writer0.BeginStep();
-    if(writer_num == 0){
+    int type_index = *type_idx;
+    if(adios_init == 0){
         lx1 = *lx1_in;
         ly1 = *ly1_in;
         lz1 = *lz1_in;
@@ -177,47 +204,36 @@ extern "C" void adios2_setup_async_(
         t = io.DefineVariable<double>("T", {total3}, {start3}, {count3});
         bm1 = io.DefineVariable<double>("BM1", {total3}, {start3}, {count3});
         InsituCounter = io.DefineVariable<int>("InsituCount", {total4}, {start4}, {count4});
+        adios_init = 1;
     }
-    vInSituCounter[0] = insituCount;
+    vInSituCounter[0] = 0;
 
-    adios2::StepStatus status = writer[writer_num].BeginStep();
+    adios2::StepStatus status = writer[type_index][writer_num[type_index]].BeginStep();
     if (status != adios2::StepStatus::OK){
 	    std::cout << "Writer has not done begin step." << std::endl;
-        writer[writer_num].EndStep();
-        writer[writer_num].Close();
+        writer[type_index][writer_num[type_index]].EndStep();
+        writer[type_index][writer_num[type_index]].Close();
         //MPI_Finalize();
         return;
     }
-    //writer = io.Open("globalArray", adios2::Mode::Write);
-    //writer.BeginStep();
-    writer[writer_num].Put<int>(init_int_const, vINT.data());
-    writer[writer_num].Put<double>(init_double_const, vDOUBLE.data());
-    writer[writer_num].EndStep();
-    writer[writer_num].BeginStep();
-    writer[writer_num].Put<double>(x, xml_in);
-    writer[writer_num].Put<double>(y, yml_in);
-    writer[writer_num].Put<double>(z, zml_in);
-    writer[writer_num].Put<double>(p, pr);
-    writer[writer_num].Put<double>(vx, v);
-    writer[writer_num].Put<double>(vy, u);
-    writer[writer_num].Put<double>(vz, w);
-    writer[writer_num].Put<double>(t, tem);
-    writer[writer_num].Put<double>(bm1, bm);
-    writer[writer_num].Put<int>(InsituCounter, vInSituCounter.data());
-    writer[writer_num].EndStep();
-    /*
-    adios2::Variable<double> x_xyz = io_xyz.DefineVariable<double>("X", {total1}, {start1}, {count1});
-    adios2::Variable<double> y_xyz = io_xyz.DefineVariable<double>("Y", {total1}, {start1}, {count1});
-    adios2::Variable<double> z_xyz = io_xyz.DefineVariable<double>("Z", {total1}, {start1}, {count1});
-    writer0.Put<double>(x_xyz, xml_in);
-    writer0.Put<double>(y_xyz, yml_in);
-    writer0.Put<double>(z_xyz, zml_in);
-    writer0.EndStep();
-    writer0.Close();
-    */
-    firstStep=true;
-    ++writer_num;
-    ++insituCount;
+
+    writer[type_index][writer_num[type_index]].Put<int>(init_int_const, vINT.data());
+    writer[type_index][writer_num[type_index]].Put<double>(init_double_const, vDOUBLE.data());
+    writer[type_index][writer_num[type_index]].EndStep();
+    writer[type_index][writer_num[type_index]].BeginStep();
+    writer[type_index][writer_num[type_index]].Put<double>(x, xml_in);
+    writer[type_index][writer_num[type_index]].Put<double>(y, yml_in);
+    writer[type_index][writer_num[type_index]].Put<double>(z, zml_in);
+    writer[type_index][writer_num[type_index]].Put<double>(p, pr);
+    writer[type_index][writer_num[type_index]].Put<double>(vx, v);
+    writer[type_index][writer_num[type_index]].Put<double>(vy, u);
+    writer[type_index][writer_num[type_index]].Put<double>(vz, w);
+    writer[type_index][writer_num[type_index]].Put<double>(t, tem);
+    writer[type_index][writer_num[type_index]].Put<double>(bm1, bm);
+    writer[type_index][writer_num[type_index]].Put<int>(InsituCounter, vInSituCounter.data());
+    writer[type_index][writer_num[type_index]].EndStep();
+
+    ++writer_num[type_index];
     if(!rank) std::cout << "In-Situ setting done" << std::endl;
     std::cout << "Nek rank: " << rank << " count: " << nelt << " , start: " << nelbt << " , total: " << nelgt << " , nelbv: " << *nelbt_in << std::endl;
 }
@@ -232,39 +248,63 @@ extern "C" void adios2_update_(
     const double *u,
     const double *w,
     const double *temp,
-    const double *bm
+    const double *bm,
+    const int* type_idx
 ){  
     startT = std::clock();
-    writer[insituCount%writer_num].BeginStep();
-    vInSituCounter[0] = insituCount;
-
-    /*
-    if(firstStep){
-    	writer.Put<double>(x, xml_in,adios2::Mode::Sync);
-    	writer.Put<double>(y, yml_in,adios2::Mode::Sync);
-    	writer.Put<double>(z, zml_in,adios2::Mode::Sync);
-	firstStep=false;
+    int type_index = *type_idx;
+    ++stepCount[type_index];
+    if(stepCount[type_index]%insitu_fre[type_index]!=0){
+        dataTime += (std::clock() - startT) / (double) CLOCKS_PER_SEC;
+        return;
     }
-    */
-    writer[insituCount%writer_num].Put<double>(p, pr);
-    writer[insituCount%writer_num].Put<double>(vx, v);
-    writer[insituCount%writer_num].Put<double>(vy, u);
-    writer[insituCount%writer_num].Put<double>(vz, w);
-    writer[insituCount%writer_num].Put<double>(t, temp);
-    writer[insituCount%writer_num].Put<double>(bm1, bm);
-    writer[insituCount%writer_num].Put<int>(InsituCounter, vInSituCounter.data());
-    writer[insituCount%writer_num].EndStep();
-    ++insituCount;
+    ++insituCount[type_index];
+    int idx_writer = insituCount[type_index]%writer_num[type_index];
+    writer[type_index][idx_writer].BeginStep();
+    vInSituCounter[0] = stepCount[type_index];
+    writer[type_index][idx_writer].Put<double>(p, pr);
+    writer[type_index][idx_writer].Put<double>(vx, v);
+    writer[type_index][idx_writer].Put<double>(vy, u);
+    writer[type_index][idx_writer].Put<double>(vz, w);
+    writer[type_index][idx_writer].Put<double>(t, temp);
+    writer[type_index][idx_writer].Put<double>(bm1, bm);
+    writer[type_index][idx_writer].Put<int>(InsituCounter, vInSituCounter.data());
+    writer[type_index][idx_writer].EndStep();
     dataTime += (std::clock() - startT) / (double) CLOCKS_PER_SEC;
 }
 
 extern "C" void adios2_finalize_(){
-    int closeIdx;
-    for(closeIdx=0;closeIdx<writer_num;++closeIdx)
-        writer[closeIdx].Close();
-    
+    int closeIdx, typeIdx;
+    for(typeIdx = 0; typeIdx < type_num; ++typeIdx){
+        for(closeIdx = 0; closeIdx < writer_num[typeIdx]; ++closeIdx)
+            writer[typeIdx][closeIdx].Close();
+    }
     std::cout <<  "rank: " << rank << " sin-situ time: " << dataTime << "s, total time: " << (std::clock() - startTotal) / (double) CLOCKS_PER_SEC << "s. " << std::endl;
 }
 
+/* Here are the adios2 for lossy compression part */
 
+extern "C" void adios2_update_lossy_(
+    const int *lglel,
+    const double *pr,
+    const double *v,
+    const double *u,
+    const double *w,
+    const double *temp,
+    const int* type_index
+){
+    startT = std::clock();
+    ++insituCount[type_index];
+    int idx_writer = insituCount[type_index]%writer_num[type_index];
+    writer[type_index][idx_writer].BeginStep();
+    vInSituCounter[0] = insituCount[type_index] * insitu_fre[type_index];
 
+    writer[type_index][idx_writer].Put<double>(p, pr);
+    writer[type_index][idx_writer].Put<double>(vx, v);
+    writer[type_index][idx_writer].Put<double>(vy, u);
+    writer[type_index][idx_writer].Put<double>(vz, w);
+    writer[type_index][idx_writer].Put<double>(t, temp);
+    writer[type_index][idx_writer].Put<int>(InsituCounter, vInSituCounter.data());
+    writer[type_index][idx_writer].EndStep();
+    dataTime += (std::clock() - startT) / (double) CLOCKS_PER_SEC;
+}

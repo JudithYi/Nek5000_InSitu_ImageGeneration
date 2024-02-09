@@ -8,10 +8,14 @@
 #include <ctime>
 #include <vector>
 
+void init_multiple_type(const int type_num_in);
+
 void adios_writer_init(
     MPI_Comm & comm,
     MPI_Comm & worldComm, 
-    std::string engineName
+    std::string engineName,
+    const int iostep_in,
+    const int type_index
 );
 
 #endif

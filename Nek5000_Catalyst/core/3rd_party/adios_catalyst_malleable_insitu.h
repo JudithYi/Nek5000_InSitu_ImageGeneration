@@ -11,7 +11,13 @@
 #include "nek_catalyst_async.h"
 #include "myCPPythonAdaptorAPI.h"
 
-int adios_catalyst_init(MPI_Comm & comm_in, MPI_Comm & worldComm, std::string enginePair, const int firstPair);
+int adios_catalyst_init(
+    MPI_Comm & comm_in, 
+    MPI_Comm & worldComm, 
+    std::string enginePair, 
+    const int firstPair, 
+    const int group=0
+);
 int adios_catalyst();
 //int adios_catalyst_run();
 
