@@ -37,6 +37,9 @@ int main(int argc, char* argv[]){
     std::vector<int> fre_in_situ(type_in_situ);
     int total_group = 0;
     int total_insitu_cores = 0;
+    int tmp_idx;
+    int tmp_group = 0;
+    int group_colour;
     for(i = 0; i < type_in_situ; ++i){
         num_groups[i] = std::stoi(argv[3 + i * 3]);
         cores_in_situ[i] = std::stoi(argv[4 + i * 3]);
@@ -47,7 +50,7 @@ int main(int argc, char* argv[]){
     colours.resize(total_group);
     group_start.resize(total_group+1);
     group_start[0] = 0;
-    int tmp_group = 0;
+    tmp_group = 0;
     for(i = 0; i < type_in_situ; ++i){
         for(j = 0; j < num_groups[i]; ++j){
             group_start[tmp_group + j + 1] = group_start[tmp_group + j] + cores_in_situ[i];
@@ -66,9 +69,17 @@ int main(int argc, char* argv[]){
         }
     }else{
         //colour = static_cast<int>(world_rank%cores_per_socket/cores_in_situ);
-        for(i = 0; i < total_group; ++i){
-            colours[i] = 0;
-            if(world_rank%cores_per_socket>=group_start[i] && world_rank%cores_per_socket<group_start[i+1]) colour = i;
+        tmp_group = 0;
+        for(i = 0; i < type_in_situ; ++i){
+            for(j = 0; j < num_groups[i]; ++j){
+                tmp_idx = tmp_group + j;
+                colours[tmp_idx] = 0;
+                if(world_rank%cores_per_socket>=group_start[tmp_idx] && world_rank%cores_per_socket<group_start[tmp_idx+1]){ 
+                    colour = tmp_idx;
+                    group_colour = i;
+                }
+            }
+            tmp_group += num_groups[i];
         }
         colours[colour] = 1;
     }
@@ -86,7 +97,7 @@ int main(int argc, char* argv[]){
 	    enginePair.append(std::to_string(colour));
 	    std::replace(enginePair.begin(), enginePair.end(), '/', '_');
         std::cout << "Local rank: " << world_rank << ": Reader "<< enginePair <<std::endl;
-        adios_catalyst_init(comm, comm_reader, enginePair, 0, colour);
+        adios_catalyst_init(comm, comm_reader, enginePair, 0, group_colour);
         for(i = colour+1; i < total_group; ++i){
             MPI_Comm_split(MPI_COMM_WORLD, colours[i], world_rank, &comm_writer[0]);
         }
@@ -97,8 +108,7 @@ int main(int argc, char* argv[]){
         comm_f = MPI_Comm_c2f(comm);
 	    nek_init_insitu_(&comm_f);
         init_multiple_type(type_in_situ);
-        int tmp_group = 0;
-        int tmp_idx;
+        tmp_group = 0;
         for(i = 0; i < type_in_situ; ++i){
             for(j = 0; j < num_groups[i]; ++j){
                 tmp_idx = tmp_group + j;
