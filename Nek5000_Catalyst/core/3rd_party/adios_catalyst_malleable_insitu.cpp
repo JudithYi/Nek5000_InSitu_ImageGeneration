@@ -41,7 +41,7 @@ std::vector<double> vVY;
 std::vector<double> vVZ;
 std::vector<double> vP;
 std::vector<double> vT;
-std::vector<double> vBM1;
+//std::vector<double> vBM1;
 std::vector<double>vP2;
 std::vector<int> vInsituCounter;
 adios2::StepStatus status; 
@@ -52,7 +52,7 @@ adios2::Variable<double> vx;
 adios2::Variable<double> vy;
 adios2::Variable<double> vz;
 adios2::Variable<double> t;
-adios2::Variable<double> bm1;
+//adios2::Variable<double> bm1;
 adios2::Variable<int>InsituCounter;
 
 adios2::Variable<int> init_int_vec1;
@@ -262,11 +262,13 @@ int adios_catalyst_init(
         std::cout << "Error: NO variable T found. Unable to proceed. \n Exiting. " << std::endl;
         return 4;
     }
+    /*
     bm1 = inIO.InquireVariable<double>("BM1");
     if (!bm1){
         std::cout << "Error: NO variable BM1 found. Unable to proceed. \n Exiting. " << std::endl;
         return 4;
     }
+    */
     total = vx.Shape()[0];
     if(total != static_cast<std::size_t>(lxyz1*nelgv)){
          std::cout << total << " vs " << lxyz1*nelgv << " \n Error: V length not match" << std::endl;
@@ -301,7 +303,7 @@ int adios_catalyst_init(
     vVY.resize(count);
     vVZ.resize(count);
     vT.resize(count3);
-    vBM1.resize(count3);
+    //vBM1.resize(count3);
     vInsituCounter.resize(count4);
 
     p.SetSelection({{start2}, {count2}});
@@ -309,7 +311,7 @@ int adios_catalyst_init(
     vy.SetSelection({{start}, {count}});
     vz.SetSelection({{start}, {count}});
     t.SetSelection({{start3}, {count3}});
-    bm1.SetSelection({{start3}, {count3}});
+    //bm1.SetSelection({{start3}, {count3}});
     InsituCounter.SetSelection({{start4}, {count4}});
 
     reader.Get<double>(p, vP.data());
@@ -317,7 +319,7 @@ int adios_catalyst_init(
     reader.Get<double>(vy, vVY.data());
     reader.Get<double>(vz, vVZ.data());
     reader.Get<double>(t, vT.data());
-    reader.Get<double>(bm1, vBM1.data());
+    //reader.Get<double>(bm1, vBM1.data());
     reader.Get<int>(InsituCounter, vInsituCounter.data());
     if(!rank)std::cout << "2nd reader step" << std::endl;
     reader.EndStep();
@@ -396,11 +398,13 @@ int adios_catalyst(){
         	std::cout << "Error: NO variable T found. Unable to proceed. \n Exiting. " << std::endl;
         	return 4;
     	    }
+            /*
     	    bm1 = inIO.InquireVariable<double>("BM1");
     	    if (!bm1){
         	std::cout << "Error: NO variable BM1 found. Unable to proceed. \n Exiting. " << std::endl;
         	return 4;
      	    }
+            */
             InsituCounter = inIO.InquireVariable<int>("InsituCount");
             if (!InsituCounter){
             std::cout << "Error: NO variable InsituCount found. Unable to proceed. \n Exiting. " << std::endl;
@@ -412,7 +416,7 @@ int adios_catalyst(){
             vy.SetSelection({{start}, {count}});
             vz.SetSelection({{start}, {count}});
             t.SetSelection({{start3}, {count3}});
-            bm1.SetSelection({{start3}, {count3}});
+            //bm1.SetSelection({{start3}, {count3}});
             InsituCounter.SetSelection({{start4}, {count4}});
 	    
             reader.Get<double>(p, vP.data());
@@ -420,7 +424,7 @@ int adios_catalyst(){
             reader.Get<double>(vy, vVY.data());
             reader.Get<double>(vz, vVZ.data());
             reader.Get<double>(t, vT.data());
-            reader.Get<double>(bm1, vBM1.data());
+            //reader.Get<double>(bm1, vBM1.data());
             reader.Get<int>(InsituCounter, vInsituCounter.data());
             reader.EndStep();
             startT = std::clock();
