@@ -5,6 +5,10 @@ vtkUnstructuredGrid *grid = NULL;
 void catalyst_usrpipe(char* name, int length){
 	//int length = 9;
 	//char name[] ="pipe.py";
+	for(int i=0;i<length;++i){
+		std::cout << name[i] << " ";
+	}
+	std::cout << std::endl;
 	coprocessoraddpythonscript(name, &length);
 }
 

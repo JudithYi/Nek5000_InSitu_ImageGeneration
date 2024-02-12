@@ -331,10 +331,10 @@ int adios_catalyst_init(
     std::string s = "pipe" + std::to_string(group) + ".py"; 
   
     const int py_length = s.length(); 
-  
+      
     // declaring character array (+1 for null terminator) 
     char* char_array = new char[py_length + 1]; 
-    
+    strcpy(char_array, s.c_str()); 
     catalyst_usrpipe(char_array, py_length+1);
     
     delete char_array;
