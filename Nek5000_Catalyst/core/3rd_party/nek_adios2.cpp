@@ -44,6 +44,19 @@ std::vector<int> insitu_fre;
 int adios_init;
 int type_num = 0;
 
+/* variables for reading */
+adios2::IO ior;
+adios2::Variable<double> vxr;
+adios2::Variable<double> vyr;
+adios2::Variable<double> vzr;
+adios2::Variable<double> prr;
+adios2::Variable<int> lglelr;
+std::vector<double> vVXr;
+std::vector<double> vVYr;
+std::vector<double> vVZr;
+std::vector<double> vVPrr;
+std::vector<int> vVLGLELr;
+
 void init_multiple_type(const int type_num_in){
     type_num = type_num_in;
     writer_num.resize(type_num);
@@ -310,6 +323,7 @@ extern "C" void adios2_update_lossy_(
     dataTime += (std::clock() - startT) / (double) CLOCKS_PER_SEC;
 }
 
+/* functions for reading */
 extern "C" void adios2_read_(
     int *lglelrr,
     double *pr,
@@ -351,6 +365,19 @@ extern "C" void adios2_read_(
     // Understand how the elements are divided among ranks.
     // set the pointers to the starting points in vectors of for each rank.
     //unsigned int nelv = static_cast<unsigned int>((*nelgv) / size);
+    ior = adios.DeclareIO("inputReader");
+    // In config, writer 0 uses the BPfile engine, wich i guess stands for
+    // bzip2
+    if (!ior.InConfigFile())
+    {
+        // if not defined by user, we can change the default settings
+        // BPFile is the default engine
+        ior.SetEngine("BPFile");
+        ior.SetParameters({{"num_threads", "1"}});
+
+        // ISO-POSIX file output is the default transport (called "File")
+        // Passing parameters to the transport
+    }
     unsigned int nelv = static_cast<unsigned int>((*nelvin));
     unsigned int start = static_cast<unsigned int>(*nelb);
     //if((*nelgv)%size != 0){
