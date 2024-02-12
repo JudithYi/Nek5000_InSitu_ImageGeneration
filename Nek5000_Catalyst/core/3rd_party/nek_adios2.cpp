@@ -56,6 +56,7 @@ std::vector<double> vVYr;
 std::vector<double> vVZr;
 std::vector<double> vVPrr;
 std::vector<int> vVLGLELr;
+int ifile = 0;
 
 void init_multiple_type(const int type_num_in){
     type_num = type_num_in;
