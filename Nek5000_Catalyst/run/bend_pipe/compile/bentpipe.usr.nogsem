@@ -1,0 +1,498 @@
+c-----------------------------------------------------------------------
+c     Laminar-transitional bent pipe flow 
+c     Along (positive) z-direction
+c     
+c
+c-----------------------------------------------------------------------
+
+      subroutine uservp (ix,iy,iz,ieg)
+		include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+
+      udiff =0.
+      utrans=0.
+      return
+      end
+
+c-----------------------------------------------------------------------
+
+      subroutine userf  (ix,iy,iz,ieg)
+
+      include 'SIZE'  ! L[XYZ]1,LELV
+		include 'TOTAL'
+      include 'NEKUSE'! U[XYZ],PA,TEMP,CBU
+
+      integer, intent(in) :: ix,iy,iz,ieg
+		ffx = 0.
+		ffy = 0.
+		ffz = 0.
+
+		return
+      end
+
+c-----------------------------------------------------------------------
+
+      subroutine userq  (ix,iy,iz,ieg)
+      return
+      end
+
+c-----------------------------------------------------------------------
+
+      subroutine userchk
+      implicit none
+
+      include 'SIZE'  ! L[XYZ]1,LELV,NID
+      include 'MASS' ! BM1
+      include 'TSTEP' ! ISTEP,IOSTEP
+      include 'INPUT' ! PARAM
+      include 'SOLN'  ! V[XYZ],V[XYZ]P
+		include 'ADJOINT'
+		include 'BOOSTCONV'
+		include 'CONHT'
+
+		real x0(3)         
+      save x0
+      data x0 /3*0/
+		real scale
+
+		real norm2_bc
+      real cht_glsc2_wt
+      real vxmax,vymax,vzmax,tmax
+      real, external :: glmax
+
+
+      ! save initial condition
+      if (istep.eq.0) then
+         call outpost(vx,vy,vz,pr,t,'ini')
+      endif
+      param(102) = 1.
+      call chkptol
+
+c		Compute the pressure force on the pipe wall
+c
+       if (istep.eq.0) then 
+			call set_obj  ! define objects for surface integrals
+			norm2_bc = 1.
+!     start framework
+         call frame_start
+		endif
+
+!     monitor simulation
+      call frame_monitor
+
+!     save/load files for full-restart
+      call chkpt_main
+
+      scale = 1.  ! Cd = F/(.5 rho U^2 ) = 2*F
+!      if (mod(ISTEP,10).eq.0) call torque_calc(scale,x0,.true.,.false.)
+
+!     write out probes
+      if (mod(ISTEP,int(UPARAM(1))).eq.0) call hpts()
+
+		if (mod(istep,1000).eq.0) then
+         ! Compute lambda_2 
+         call lambda2(t(1,1,1,1,1))
+      endif
+cccccccc CHECK CONVERGENCE OF STEADY STATE ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+		chcff_v = 1.
+      if (istep.eq.1) then
+			call cht_oprzero(VXOLD,VYOLD,VZOLD,TOLD)		
+			norm2_bc = 1.
+		endif
+		if (istep.gt.1) then	
+			if(.not.IFADJ) then    !non-linear
+            call cht_opsub2(VXOLD,VYOLD,VZOLD,TOLD,VX,VY,VZ,T)
+         else                   !linear
+            call cht_opsub2(VXOLD,VYOLD,VZOLD,TOLD,VXP,VYP,VZP,TP)
+         endif
+      
+!     Debugging
+      vxmax = glmax(VXOLD,NX1*NY1*NZ1*NELV)
+      vxmax = abs(vxmax)
+      vymax = glmax(VYOLD,NX1*NY1*NZ1*NELV)
+      vymax = abs(vymax)
+      vzmax = glmax(VZOLD,NX1*NY1*NZ1*NELV)
+      vzmax = abs(vzmax)
+      tmax = glmax(TOLD,NX1*NY1*NZ1*NELT)
+      tmax = abs(tmax)
+      if (nid.eq.0) write(6,*) 'VELOCITY',vxmax, vymax, vzmax, tmax   
+
+!     norm of the difference
+         norm2_bc=cht_glsc2_wt(VXOLD,VYOLD,VZOLD,TOLD,
+     $        VXOLD,VYOLD,VZOLD,TOLD,BM1)
+		if (nid.eq.0) write(6,*) 'NORM2 = ', istep,dt,norm2_bc
+         norm2_bc=sqrt(norm2_bc)
+!     normalization by DT (estimate of the norm of time derivative)
+         norm2_bc=norm2_bc/DT
+!     updating v[xyz]old with v[xyz] at present iteration
+         if(.not.IFADJ) then    !non-linear
+            call cht_opcopy(VXOLD,VYOLD,VZOLD,TOLD,VX,VY,VZ,T)
+         else                   !linear
+            call cht_opcopy(VXOLD,VYOLD,VZOLD,TOLD,VXP,VYP,VZP,TP)
+         endif
+		endif
+         if (nid.eq.0) write(6,*) 'norm = ', ISTEP, TIME, norm2_bc	
+c     Check for convergence
+      if (norm2_bc.lt.1e-10) then
+         lastep = 1
+         nsteps = 0
+      endif
+
+
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+!     finalise framework
+      if (ISTEP.eq.NSTEPS.or.LASTEP.eq.1) then
+         call frame_end
+      endif
+      
+      return
+      end
+
+
+c-----------------------------------------------------------------------
+
+      subroutine userbc (ix,iy,iz,iside,ieg)
+
+      implicit none
+
+      include 'SIZE'  ! L[XYZ]1,LELV
+      include 'PARALLEL'  ! GLLEL
+      include 'INPUT'  ! IF3D
+      include 'NEKUSE'! U[XYZ],PA,TEMP,CBU
+
+      integer, intent(in) :: ix,iy,iz,iside,ieg
+      integer iel
+      real :: r2, bent_radius     
+
+		bent_radius = 5.	
+
+		r2 = (x-bent_radius)**2 + y**2
+      ux = 0.  
+      uy = 0.  	    
+      uz = 2.*(1-4.*r2) 	
+		temp = 0.0d0
+
+      end
+
+c-----------------------------------------------------------------------
+
+      subroutine useric (ix,iy,iz,ieg)
+      implicit none
+
+      include 'SIZE'  ! L[XYZ]1,LELV
+      include 'NEKUSE'! U[XYZ], [XYZ]
+
+      integer, intent(in) :: ix,iy,iz,ieg
+
+      integer ex
+      real vel, angle
+      real :: r2, bent_radius, bent_phi, pi
+		real s,a
+
+		bent_radius = 5.
+		pi=4.0*atan(1.d0)
+		bent_phi = 0.5*pi
+
+      
+      if (abs(bent_phi).gt.1e-10) then
+
+         if (z.le.0) then
+	        r2 = (x-bent_radius)**2 + y**2
+            	Uy = 0.
+            	Ux = 0.
+					Uz = 2.*(1-4.*r2) 
+
+         elseif (z.gt.0) then
+            angle = atan2(z,x)
+            if (angle.le.bent_phi) then
+	            r2 = (sqrt(x*x + z*z)-bent_radius)**2 + y**2
+					vel = 2.*(1-4.*r2)
+	            Uy = 0.
+               Ux = -vel*sin(angle)
+               Uz =  vel*cos(angle)
+	 
+            else
+	            r2 = (z-bent_radius)**2 + y**2
+					vel = 2.*(1-4.*r2)
+	            Uy = 0.
+               Ux = -vel*sin(bent_phi)
+               Uz =  vel*cos(bent_phi)
+	    
+            endif
+         endif
+      endif
+
+		s = 0.1
+		call my_random_number(a)
+		a=a-0.5
+		Ux=Ux+s*a
+		call my_random_number(a)
+		a=a-0.5
+		Uy=Uy+s*a
+		call my_random_number(a)
+		a=a-0.5
+		Uz=Uz+s*a
+
+      return
+      end
+
+c-----------------------------------------------------------------------
+
+      subroutine usrdat
+      include 'SIZE'
+      include 'TOTAL'
+     
+      return
+      end
+
+c-----------------------------------------------------------------------
+
+      subroutine usrdat2
+        implicit none
+      include 'SIZE' ! nelv
+      include 'GEOM' 
+      include 'NEKUSE' ! XM1
+      include 'INPUT' 
+      include 'PARALLEL' 
+      include 'SOLN' 
+
+      integer i, iel
+      real angle, circumf, bent_radius, bent_phi, z_offset, pi
+
+      integer ii, jj, kk
+      ! use some reals to force ratios
+      real nL, nelF, nelUp, nelBent, nelDown
+      real lPipe, lUp, lBent, lDown
+		real :: r0 = 0.5
+
+		pi=4.0*atan(1.d0)
+
+c		Rescale incoming pipe radius to be r0
+c
+		call rescale_x(xm1,-r0,r0)
+		call rescale_x(ym1,-r0,r0)
+
+c		Rescale incoming pipe length to [0,1]
+c
+		call rescale_x(zm1,0.,1.)
+
+c		Mesh dilatation
+c
+      nL    = 280.
+      lPipe = 1.
+		z_offset = -10.
+		bent_radius = 5.
+		bent_phi = 0.5*pi
+
+      lUp   = abs(z_offset)
+      lBent = bent_radius*bent_phi
+      lDown = 10.
+
+      nelF    = 336.
+      nelUp   = 80.
+      nelBent = 120.
+      nelDown = 80.
+
+      if (nid.eq.0) then
+         write(*,*) 'nL = ', nL
+         write(*,*) 'L  = ', lPipe
+         write(*,*) ''
+         write(*,*) 'lUp   = ', lUp
+         write(*,*) 'lBent = ', lBent
+         write(*,*) 'lDown = ', lDown
+         write(*,*) ''
+         write(*,*) 'nelF    = ', nelF
+         write(*,*) 'nelUp   = ', nelUp
+         write(*,*) 'nelBent = ', nelBent
+         write(*,*) 'nelDown = ', nelDown
+      endif
+
+      do i = 1,nelv
+         iel=lglel(i)
+         if (iel.le.nelUp*nelF) then
+            ! upstream section
+            !write(*,*) nid, 'upstream', iel
+            do ii=1,nx1; do jj=1,ny1; do kk=1,nz1
+            zm1(ii,jj,kk,i) =
+     $         zm1(ii,jj,kk,i) * 
+     $         lUp/(nelUp/nL*lPipe)
+            enddo; enddo; enddo
+         elseif ((iel.gt.nelUp*nelF)
+     $      .and.(iel.le.(nelUp+nelBent)*nelF)) then
+            ! bent section
+            !write(*,*) nid, 'bent', iel
+            do ii=1,nx1; do jj=1,ny1; do kk=1,nz1
+            zm1(ii,jj,kk,i) =
+     $         (zm1(ii,jj,kk,i) - nelUp/nL*lPipe) *
+     $         lBent/(nelBent/nL*lPipe) +
+     $         lUp
+            enddo; enddo; enddo
+         elseif (iel.gt.(nelUp+nelBent)*nelF) then
+            ! downstream section
+            !write(*,*) nid, 'downstream', iel
+            do ii=1,nx1; do jj=1,ny1; do kk=1,nz1
+            zm1(ii,jj,kk,i) =
+     $         (zm1(ii,jj,kk,i) - (nelUp+nelBent)/nL*lPipe) *
+     $         lDown/(nelDown/nL*lPipe) +
+     $         lUp+lBent
+            enddo; enddo; enddo
+         endif
+      enddo
+      param(59) = 1. ! 1 = deformed mesh
+
+      
+      if (abs(bent_phi).gt.1e-10) then
+
+c     Bend and translate the straight pipe
+c     The sweep of the bent arc is bent_phi
+c     The pipe inlet is moved at (0,r1,0) so that the center of the bend
+c     is in (0,0,0)
+
+      circumf = bent_radius*bent_phi
+c
+      do i=1,nx1*ny1*nz1*nelv
+        zm1(i,1,1,1) = zm1(i,1,1,1) + z_offset
+        xm1(i,1,1,1) = xm1(i,1,1,1) + bent_radius
+
+        if (zm1(i,1,1,1).gt.0.and.zm1(i,1,1,1).le.circumf) then
+          angle=zm1(i,1,1,1)/bent_radius
+          zm1(i,1,1,1) = xm1(i,1,1,1)*sin(angle)
+          xm1(i,1,1,1) = xm1(i,1,1,1)*cos(angle)
+        elseif (zm1(i,1,1,1).gt.circumf) then
+
+          angle = zm1(i,1,1,1) - circumf
+
+          zm1(i,1,1,1) = xm1(i,1,1,1)*sin(bent_phi)
+     $    + angle*cos(bent_phi)
+          xm1(i,1,1,1) = xm1(i,1,1,1)*cos(bent_phi) 
+     $    - angle*sin(bent_phi)
+        endif
+      enddo
+      param(59) = 1. ! 1 = deformed mesh
+
+      endif
+
+      
+      return
+      end
+
+c-----------------------------------------------------------------------
+
+      subroutine usrdat3
+        implicit none
+      return
+      end
+
+c------------------------------------------------------------------------
+      subroutine set_obj  ! define objects for surface integrals
+c
+      include 'SIZE'
+      include 'TOTAL'
+
+      integer e,f,eg
+
+      nobj = 280.
+      iobj = 0
+      do ii=nhis+1,nhis+nobj
+         iobj = iobj+1
+         hcode(10,ii) = 'I'
+         hcode( 1,ii) = 'F'
+         hcode( 2,ii) = 'F'
+         hcode( 3,ii) = 'F'
+         lochis(1,ii) = iobj
+      enddo
+      nhis = nhis + nobj
+
+      if (maxobj.lt.nobj) call exitti('increase maxobj in SIZE$',nobj)
+
+      nxyz  = nx1*ny1*nz1
+      nface = 2*ndim
+
+      do e=1,nelv
+      eg = lglel(e)
+      do f=1,nface
+         if (cbc(f,e,1).eq.'W  ') then
+            iobj  = ceiling(real(eg)/336.)  !change the number of elements per face
+!            iobj = 1
+            if (iobj.gt.0) then
+               nmember(iobj) = nmember(iobj) + 1
+               mem = nmember(iobj)
+               eg  = lglel(e)
+               object(iobj,mem,1) = eg
+               object(iobj,mem,2) = f
+c              write(6,1) iobj,mem,f,eg,e,nid,' OBJ'
+c   1          format(6i9,a4)
+
+            endif
+         endif
+      enddo
+      enddo
+
+c     write(6,*) 'number',(nmember(k),k=1,4)
+c
+      return
+      end
+c----------------------------------------------------------------------
+!> @brief Register user specified modules
+      subroutine frame_usr_register
+      implicit none
+
+      include 'SIZE'
+      include 'FRAMELP'
+!-----------------------------------------------------------------------
+!     register modules
+      call io_register
+      call chkpt_register
+
+      return
+      end subroutine
+!======================================================================
+!> @brief Initialise user specified modules
+      subroutine frame_usr_init
+      implicit none
+
+      include 'SIZE'
+      include 'FRAMELP'
+      include 'SOLN'
+!-----------------------------------------------------------------------
+!     initialise modules
+      call chkpt_init
+
+      return
+      end subroutine
+!======================================================================
+!> @brief Finalise user specified modules
+      subroutine frame_usr_end
+      implicit none
+
+      include 'SIZE'
+      include 'FRAMELP'
+!-----------------------------------------------------------------------
+
+      
+      return
+      end subroutine
+!======================================================================
+      subroutine my_random_number(a) ! on [0,1]
+
+      big1 = 7.12345e11
+      big2 = 1.11111e12
+
+      amin = 0.25  ! Take center of interval to get more uniform dist.
+      amax = 0.75
+      do icount=1,50
+         aa = cos( a*big1) + 1.
+         bb = cos(aa*big2) + 1.
+         a  = 0.5*bb
+         if (amin.le.a.and.a.le.amax) then
+            a = (a-amin)/(amax-amin)
+            return
+         endif
+      enddo
+
+      return
+      end
+c-----------------------------------------------------------------------
+

@@ -1,0 +1,378 @@
+! pipe dimensions: radius and length
+#define RAD 0.5
+#define ZLENPIPE 15.0
+!======================================================================
+      subroutine uservp(ix,iy,iz,ieg)
+      return
+      end subroutine
+!======================================================================
+      subroutine userf(ix,iy,iz,ieg)
+      return
+      end subroutine
+!======================================================================
+      subroutine userq(ix,iy,iz,ieg)
+      return
+      end subroutine
+!======================================================================
+      subroutine userchk()
+      implicit none
+
+      include 'SIZE'
+      include 'GEOM'            ! xm1, ym1, zm1
+      include 'SOLN'            ! T
+      include 'MASS'            ! BM1
+      include 'TSTEP'           ! ISTEP, PI
+      include 'INPUT'           ! PARAM(12) (DT)
+
+!-----------------------------------------------------------------------
+      if (ISTEP.eq.0) then
+         call frame_start       ! start framework
+         call outpost(vx,vy,vz,pr,t,'ini')
+      endif
+
+      call frame_monitor        ! monitor simulation
+
+      call chkpt_main           ! save/load files for full-restart
+      
+      call gsem_main            ! synthetic eddy method
+
+      call lambda2(t(1,1,1,1,1))
+  
+      if (ISTEP.eq.NSTEPS.or.LASTEP.eq.1) then
+         call frame_end         ! finalise framework
+      endif
+      
+      return
+      end subroutine
+!======================================================================
+      subroutine userbc (ix,iy,iz,iside,ieg)
+      implicit none
+
+      include 'SIZE'
+      include 'NEKUSE'
+      include 'PARALLEL'
+
+      integer ix,iy,iz,iside,ieg,e
+      real delta, U0
+      real dongOutflow ! functions declaration
+
+      e = gllel(ieg)
+      pa = 0.0
+      if (cbu.eq.'o  ') then       !Dong outflow BC
+         U0 = 1.0                  ! characteristic velocity
+         delta = 0.1               ! small positive constant
+         pa = dongOutflow(ix,iy,iz,e,iside,U0,delta)         
+      endif
+
+      return
+      end subroutine
+!======================================================================
+      subroutine useric (ix,iy,iz,ieg)
+      implicit none
+
+      include 'SIZE'  
+      include 'NEKUSE'
+
+      integer :: ix,iy,iz,ieg
+      real vel, angle
+      real :: r2, bent_radius, bent_phi, pi
+
+      bent_radius = 1.5
+      pi=4.0*atan(1.d0)
+      bent_phi = 0.5*pi
+
+      if (abs(bent_phi).gt.1e-10) then
+
+         if (z.le.0) then
+            r2 = (x-bent_radius)**2 + y**2
+            Uy = 0.
+            Ux = 0.
+            Uz = 2.*(1-4.*r2) 
+
+         elseif (z.gt.0) then
+            angle = atan2(z,x)
+            if (angle.le.bent_phi) then
+               r2 = (sqrt(x*x + z*z)-bent_radius)**2 + y**2
+               vel = 2.*(1-4.*r2)
+               Uy = 0.
+               Ux = -vel*sin(angle)
+               Uz =  vel*cos(angle)
+
+            else
+               r2 = (z-bent_radius)**2 + y**2
+               vel = 2.*(1-4.*r2)
+               Uy = 0.
+               Ux = -vel*sin(bent_phi)
+               Uz =  vel*cos(bent_phi)
+
+            endif
+         endif
+      endif
+        
+      return
+      end subroutine
+!======================================================================
+      subroutine usrdat
+      implicit none
+
+      include 'SIZE'
+      include 'GEOM'
+      include 'INPUT'
+
+      call setbc(1,1,'v  ') ! inlet
+      call setbc(2,1,'O  ') ! outlet
+      call setbc(3,1,'W  ') ! wall
+
+      return
+      end subroutine
+!======================================================================
+ 
+      subroutine usrdat2
+      implicit none
+      include 'SIZE' ! nelv
+      include 'GEOM' 
+      include 'NEKUSE' ! XM1
+      include 'INPUT' 
+      include 'PARALLEL' 
+      include 'SOLN' 
+
+      integer i, iel
+      real angle, circumf, bent_radius, bent_phi, z_offset, pi
+
+      integer ii, jj, kk
+      ! use some reals to force ratios
+      real nL, nelF, nelUp, nelBent, nelDown1, nelDown2
+      real lPipe, lUp, lBent, lDown1, lDown2
+
+      pi=4.0*atan(1.d0)
+
+c		Rescale incoming pipe radius to be r0
+c
+      call rescale_x(xm1,-RAD,RAD)
+      call rescale_x(ym1,-RAD,RAD)
+
+c		Rescale incoming pipe length to [0,1]
+c
+      call rescale_x(zm1,0.,1.)
+
+c		Mesh dilatation
+c
+      nL          = 8.
+      lPipe       = 1.
+      z_offset    = -1.
+      bent_radius = 1.5
+      bent_phi    = 0.5*pi
+
+      lUp    = abs(z_offset)
+      lBent  = bent_radius*bent_phi
+      lDown1 = 0.5
+      lDown2 = 1.
+
+      nelF     = 900.
+      nelUp    = 1.
+      nelBent  = 4.
+      nelDown1 = 2.
+      nelDown2 = 1.
+
+      if (nid.eq.0) then
+         write(*,*) 'nL = ', nL
+         write(*,*) 'L  = ', lPipe
+         write(*,*) ''
+         write(*,*) 'lUp   = ', lUp
+         write(*,*) 'lBent = ', lBent
+         write(*,*) 'lDown1 = ', lDown1
+         write(*,*) 'lDown2 = ', lDown2
+         write(*,*) ''
+         write(*,*) 'nelF     = ', nelF
+         write(*,*) 'nelUp    = ', nelUp
+         write(*,*) 'nelBent  = ', nelBent
+         write(*,*) 'nelDown1 = ', nelDown1
+         write(*,*) 'nelDown2 = ', nelDown2
+      endif
+
+      do i=1,nx1*ny1*nz1*nelv
+        if (zm1(i,1,1,1).gt.0.and.zm1(i,1,1,1).le.lPipe/nL*nelUp) then
+           zm1(i,1,1,1) = zm1(i,1,1,1)*lUp/(nelUp/nL*lPipe)
+          
+        elseif (zm1(i,1,1,1).gt.lPipe/nL*nelUp .and.
+     $          zm1(i,1,1,1).le.lPipe/nL*(nelUp+nelBent)) then
+
+                zm1(i,1,1,1) = (zm1(i,1,1,1) - nelUp/nL*lPipe)*
+     $                          lBent/(nelBent/nL*lPipe) + lUp
+
+        elseif (zm1(i,1,1,1).gt.lPipe/nL*(nelUp+nelBent) .and. 
+     $          zm1(i,1,1,1).le.lPipe/nL*(nelUp+nelBent+nelDown1)) then
+                zm1(i,1,1,1) = (zm1(i,1,1,1) 
+     $                       - (nelUp+nelBent)/nL*lPipe)*lDown1/
+     $                         (nelDown1/nL*lPipe) + (lUp+lBent)
+
+        elseif (zm1(i,1,1,1).gt.lPipe/nL*(nelUp+nelBent+nelDown1)) then
+                zm1(i,1,1,1) = (zm1(i,1,1,1) - (nelUp+nelBent+nelDown1)/
+     $                         nL*lPipe)*lDown2/(nelDown2/nL*lPipe) + 
+     $                         (lUp+lBent+lDown1)
+        endif
+      enddo
+      param(59) = 1. ! 1 = deformed mesh
+
+      if (abs(bent_phi).gt.1e-10) then
+
+c     Bend and translate the straight pipe
+c     The sweep of the bent arc is bent_phi
+c     The pipe inlet is moved at (0,r1,0) so that the center of the bend
+c     is in (0,0,0)
+
+      circumf = bent_radius*bent_phi
+c
+      do i=1,nx1*ny1*nz1*nelv
+        zm1(i,1,1,1) = zm1(i,1,1,1) + z_offset
+        xm1(i,1,1,1) = xm1(i,1,1,1) + bent_radius
+
+        if (zm1(i,1,1,1).gt.0.and.zm1(i,1,1,1).le.circumf) then
+          angle=zm1(i,1,1,1)/bent_radius
+          zm1(i,1,1,1) = xm1(i,1,1,1)*sin(angle)
+          xm1(i,1,1,1) = xm1(i,1,1,1)*cos(angle)
+        elseif (zm1(i,1,1,1).gt.circumf) then
+
+          angle = zm1(i,1,1,1) - circumf
+
+          zm1(i,1,1,1) = xm1(i,1,1,1)*sin(bent_phi)
+     $    + angle*cos(bent_phi)
+          xm1(i,1,1,1) = xm1(i,1,1,1)*cos(bent_phi) 
+     $    - angle*sin(bent_phi)
+        endif
+      enddo
+      param(59) = 1. ! 1 = deformed mesh
+
+      endif
+      call outpost(vx,vy,vz,pr,t,'ms0')
+      
+      return
+      end subroutine
+
+!======================================================================
+      subroutine usrdat3
+      implicit none
+
+      return
+      end subroutine
+!======================================================================
+!> @brief Register user specified modules
+      subroutine frame_usr_register
+      implicit none
+
+      include 'SIZE'
+      include 'FRAMELP'
+!-----------------------------------------------------------------------
+!     register modules
+      call io_register
+      call chkpt_register
+      call gsem_register
+
+      return
+      end subroutine
+!======================================================================
+!> @brief Initialise user specified modules
+      subroutine frame_usr_init
+      implicit none
+
+      include 'SIZE'
+      include 'FRAMELP'
+!-----------------------------------------------------------------------
+!     initialise modules
+      call chkpt_init
+      call gsem_init
+
+      return
+      end subroutine
+!======================================================================
+!> @brief Finalise user specified modules
+      subroutine frame_usr_end
+      implicit none
+
+      include 'SIZE'
+      include 'FRAMELP'
+!-----------------------------------------------------------------------
+
+      
+      return
+      end subroutine
+!======================================================================
+!> @brief Generate single eddy for a given family
+!! @param[out] epos       eddy position
+!! @param[out] eps        eddy orientation
+!! @param[in]  nfam       family number
+!! @param[in]  ifinit     intial distribution
+      subroutine usr_gen_eddy(epos,eps,nfam,ifinit)
+      implicit none
+
+      include 'SIZE'
+      include 'TSTEP'           ! pi
+      include 'GSYEMD'
+
+      ! argument list
+      real epos(ldim)
+      integer eps(ldim)
+      integer nfam
+      logical ifinit
+
+      ! local variables
+      real rho, theta, vrtmp(ldim)
+      integer il
+
+      real yp_cut
+      parameter (yp_cut=0.45)
+      
+      ! functions
+      real mth_ran_rng
+!-----------------------------------------------------------------------
+      ! get random position with respect to the begining of coordinate system
+      ! this must be adapted to considered amily inflow shape (in current example circle)
+      rho = yp_cut*sqrt(mth_ran_rng(0.0,1.0))  
+      theta = mth_ran_rng(0.,2.0*pi)
+
+      vrtmp(1) = rho*cos(theta)
+      vrtmp(2) = rho*sin(theta)
+      if (ifinit) then
+         vrtmp(ldim) = mth_ran_rng(-gsem_bext(nfam),gsem_bext(nfam))
+      else
+         vrtmp(ldim) = -gsem_bext(nfam)
+      endif
+
+      ! rotate coordinates with respect to family normal
+      call mth_rot3Da(epos,vrtmp,
+     $        gsem_raxs(1,nfam),gsem_rang(nfam))
+
+      ! shift vertex position with respect to family centre
+      ! notice; rotation must be done first
+      do il=1,ldim
+        epos(il) = epos(il) + gsem_bcrd(il,nfam)
+      enddo
+
+      ! get random orientation
+      do il=1,ldim
+         rho = mth_ran_rng(0.0,1.0)
+         if (rho.gt.0.5) then
+            eps(il) = 1
+         else
+            eps(il) = -1
+         endif
+      enddo
+
+      return
+      end subroutine
+!=======================================================================
+      function dongOutflow(ix,iy,iz,iel,iside,u0,delta)
+      include 'SIZE'
+      include 'SOLN'
+      include 'GEOM'
+      real sn(3)
+      ux = vx(ix,iy,iz,iel)
+      uy = vy(ix,iy,iz,iel)
+      uz = vz(ix,iy,iz,iel)
+      call getSnormal(sn,ix,iy,iz,iside,iel)
+      vn = ux*sn(1) + uy*sn(2) + uz*sn(3) 
+      S0 = 0.5*(1.0 - tanh(vn/u0/delta))
+      dongOutflow = -0.5*(ux*ux+uy*uy+uz*uz)*S0
+      return
+      end
+C-----------------------------------------------------------------------
