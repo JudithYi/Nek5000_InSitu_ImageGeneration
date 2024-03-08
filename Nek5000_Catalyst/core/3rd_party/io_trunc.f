@@ -717,6 +717,7 @@ c         write debugging values
 !!       should be used for debugging purposes mostly.
       subroutine trunc_data()
       implicit none
+      include 'mpif.h'
       include 'SIZE'    ! for size information such as lx1, etc ...
       include 'WZ'      ! for zgm1
       include 'INPUT'   ! for user inputs from par (I think) 
@@ -727,7 +728,8 @@ c         write debugging values
 
 
       include 'IOTRUNCD' ! THIS IS MINE, include here the integer a
-
+      real decompTime, start
+      common /decompress/ decompTime
 c     Declare variables -------------------
 
 c     counter for printing debbuging info
@@ -1012,7 +1014,7 @@ c     $     truncvecz,pr,t,'crt')
 c      call outpost(vx,vy,
 c     $     vz,pr,t,'fll')
 c ----------------------------------------------------------
-
+        start = MPI_Wtime ( )
 
 c       ===================
 c       Reverse truncation
@@ -1036,7 +1038,8 @@ c       For Pressure
 c       =============================================
 c       Perform the lossless compression with ADIOS2
 c       =============================================
-
+        decompTime = decompTime + MPI_Wtime ( ) - start
+        if(nid_.eq.0)  write (*,*) "decomp:", decompTime
         !pm1 is the truncated coefficients mapped into velocity mesh
         call adios2_update_lossy(lglel,pm1, vx_trc_temp, 
      &   vy_trc_temp, vz_trc_temp, t, 1)

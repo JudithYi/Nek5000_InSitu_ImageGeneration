@@ -16,18 +16,25 @@
 !======================================================================
       subroutine userchk()
       implicit none
-
+      include 'mpif.h'
       include 'SIZE'
       include 'GEOM'            ! xm1, ym1, zm1
       include 'SOLN'            ! T
       include 'MASS'            ! BM1
       include 'TSTEP'           ! ISTEP, PI
       include 'INPUT'           ! PARAM(12) (DT)
-
+      real lossTime, start
+      integer nid_,np_,nekcomm
+      common /lossTimeYi/ lossTime
+      common /nekmpi/ nid_,np_,nekcomm
+      real decompTime
+      common /decompress/ decompTime
 !-----------------------------------------------------------------------
       if (ISTEP.eq.0) then
          call frame_start       ! start framework
          call outpost(vx,vy,vz,pr,t,'ini')
+         decompTime = 0.0
+	 lossTime = 0.0
       endif
 
       call frame_monitor        ! monitor simulation
@@ -38,9 +45,12 @@
       call gsem_main            ! synthetic eddy method
 
       call lambda2(t(1,1,1,1,1))
-
+      start = MPI_Wtime ( )
       call trunc_main()
-  
+      lossTime = lossTime + (MPI_Wtime()-start)
+      
+      if(nid_.eq.0)  write (*,*) "lossy:", lossTime
+
       if (ISTEP.eq.NSTEPS.or.LASTEP.eq.1) then
          call frame_end         ! finalise framework
       endif

@@ -285,15 +285,17 @@ extern "C" void adios2_update_(
     writer[type_index][idx_writer].Put<int>(InsituCounter, vInSituCounter.data());
     writer[type_index][idx_writer].EndStep();
     dataTime += (std::clock() - startT) / (double) CLOCKS_PER_SEC;
+    if(rank==0) std::cout << "Type_" << type_index << " nr_" << idx_writer << " : " << dataTime << " s "<< std::endl;
 }
 
 extern "C" void adios2_finalize_(){
+    std::cout <<  "rank: " << rank << " sin-situ time: " << dataTime << "s, total time: " << (std::clock() - startTotal) / (double) CLOCKS_PER_SEC << "s. " << std::endl;
     int closeIdx, typeIdx;
     for(typeIdx = 0; typeIdx < type_num; ++typeIdx){
         for(closeIdx = 0; closeIdx < writer_num[typeIdx]; ++closeIdx)
             writer[typeIdx][closeIdx].Close();
     }
-    std::cout <<  "rank: " << rank << " sin-situ time: " << dataTime << "s, total time: " << (std::clock() - startTotal) / (double) CLOCKS_PER_SEC << "s. " << std::endl;
+    //std::cout <<  "rank: " << rank << " sin-situ time: " << dataTime << "s, total time: " << (std::clock() - startTotal) / (double) CLOCKS_PER_SEC << "s. " << std::endl;
 }
 
 /* Here are the adios2 for lossy compression part */
@@ -321,7 +323,8 @@ extern "C" void adios2_update_lossy_(
     writer[type_index][idx_writer].Put<double>(t, temp);
     writer[type_index][idx_writer].Put<int>(InsituCounter, vInSituCounter.data());
     writer[type_index][idx_writer].EndStep();
-    dataTime += (std::clock() - startT) / (double) CLOCKS_PER_SEC;
+    dataTime += (std::clock() - startT) / (double) CLOCKS_PER_SEC;        
+    if(rank==0) std::cout << "Type_" << type_index << " nr_" << idx_writer << " : " << dataTime << " s "<< std::endl;
 }
 
 /* functions for reading */
