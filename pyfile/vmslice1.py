@@ -128,7 +128,7 @@ def CreateCoProcessor():
 
       coprocessor.RegisterView(renderView1,
 
-          filename='fig/Pipe_VelocityMagnitude_Slice_%t.png', freq=global_freq, fittoscreen=0, magnification=1, width=1920, height=1280, cinema={})
+          filename='fig/Pipe_VelocityMagnitude_Slice_compressed_%t.png', freq=global_freq, fittoscreen=0, magnification=1, width=1920, height=1280, cinema={})
 
       renderView1.ViewTime = datadescription.GetTime()
 
