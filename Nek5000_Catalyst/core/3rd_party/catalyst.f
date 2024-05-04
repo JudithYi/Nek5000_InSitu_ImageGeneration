@@ -134,9 +134,9 @@ c      lafter=0.0
          dim = 2
          if (IF3D) dim = 3
          call creategrid(xm1, ym1, zm1, lx1, ly1, lz1, nelt, dim)
-         call add_scalar_field(pr_2, "pressure2"//char(0))
-         call add_vector_field(vx_2, vy_2, vz_2, dim, "velocity2"//char(0))
-         call add_scalar_field(t_dum, "temperature2"//char(0))
+         call add_scalar_field(pr_2, "pressure"//char(0))
+         call add_vector_field(vx_2,vy_2,vz_2,dim,"velocity"//char(0))
+         call add_scalar_field(t_dum, "temperature"//char(0))
          call coprocess()
       end if
 #ifdef CATALYST

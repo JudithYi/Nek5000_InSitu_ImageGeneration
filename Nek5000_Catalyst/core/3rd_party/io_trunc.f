@@ -456,8 +456,8 @@ c       Perform lossless compression of truncated data
 c       ===============================================
 
         !Write the fields into a file
-        call adios2_update_lossy(lglel,pm1, vx_hat_trc, 
-     &   vy_hat_trc, vz_hat_trc, t, 1)
+c         call adios2_update_lossy(lglel,pm1, vx_hat_trc, 
+c      &   vy_hat_trc, vz_hat_trc, t, 1)
 
         enddo
 
@@ -616,9 +616,9 @@ c       ========================================
 c       Fill the pressure array with zeros, just in case       
         call rzero(pm1,lx1*ly1*lz1*lelt)
 c       Adios writes the pressure in mesh 1, so read it in pm1 
-        call adios2_read(lglelr,pm1,vx_hat_trc,vy_hat_trc,vz_hat_trc,
-     &                   nvals,nelv,nelb,
-     &                   nelgv,nelgt,nekcomm,trim(fname))
+c         call adios2_read(lglelr,pm1,vx_hat_trc,vy_hat_trc,vz_hat_trc,
+c      &                   nvals,nelv,nelb,
+c      &                   nelgv,nelgt,nekcomm,trim(fname))
 
 
 c       Map the pressure to mesh 2 before transforming to phys space
@@ -1074,9 +1074,9 @@ c       ========================================
 c       fill the pressure array with zeros, just in case       
         call rzero(pm1,lx1*ly1*lz1*lelt)
 c       Adios writes the pressure in mesh 1, so read it in pm1 
-        call adios2_read(lglelr,pm1,vx_hat_trc,vy_hat_trc,vz_hat_trc,
-     &                   nvals,nelv,nelb,
-     &                   nelgv,nelgt,nekcomm,trim(fname))
+c         call adios2_read(lglelr,pm1,vx_hat_trc,vy_hat_trc,vz_hat_trc,
+c      &                   nvals,nelv,nelb,
+c      &                   nelgv,nelgt,nekcomm,trim(fname))
 
 c       Map the pressure to mesh 2 before transforming to phys space
 c       copy the corresponding entries from pm1 to prhat
