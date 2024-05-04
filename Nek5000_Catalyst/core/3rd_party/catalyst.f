@@ -94,3 +94,61 @@ c      lafter = after
 #endif
 
       end
+
+      subroutine catalyst_update2(
+     &vx_2,vy_2,vz_2,pr_2)
+      include "mpif.h"
+      include 'SIZE'
+      include 'GEOM'
+      include 'INPUT'
+      include 'TSTEP'
+      include 'SOLN'
+#ifdef CATALYST
+      real vx_2 (lx1,ly1,lz1,nelt)
+      real vy_2 (lx1,ly1,lz1,nelt)
+      real vz_2 (lx1,ly1,lz1,nelt)
+      real pr_2 (lx1,ly1,lz1,nelt)
+      double precision before, after, lafter, cat, sim
+      common /PARALLELS/ before, after, cat , sim
+      save /PARALLELS/
+      common /nekmpi/ nid_,np_,nekcomm
+      integer flag, dim
+      real t_dum (lx1,ly1,lz1,nelt)
+      integer i, j, k, l
+      do l = 1, nelt 
+         do k = 1, lz1 
+            do j = 1, ly1 
+               do i = 1, lx1 
+                  t_dum(i,j,k,l)=0.01*nid_
+               enddo
+            enddo
+        enddo
+      enddo
+
+      before = MPI_Wtime()
+#endif
+c      lafter=0.0
+      call requestdatadescription(istep+10000, time+100, flag)
+      if (flag .ne. 0) then
+         call needtocreategrid(flag)
+         dim = 2
+         if (IF3D) dim = 3
+         call creategrid(xm1, ym1, zm1, lx1, ly1, lz1, nelt, dim)
+         call add_scalar_field(pr_2, "pressure2"//char(0))
+         call add_vector_field(vx_2, vy_2, vz_2, dim, "velocity2"//char(0))
+         call add_scalar_field(t_dum, "temperature2"//char(0))
+         call coprocess()
+      end if
+#ifdef CATALYST
+      lafter = after
+      after = MPI_WTIME()
+
+      cat = after-before
+      sim = before-lafter
+
+c      lafter = after
+
+      WRITE (44, *)  before, ',', after, ',', cat, ',', sim
+#endif
+
+      end
