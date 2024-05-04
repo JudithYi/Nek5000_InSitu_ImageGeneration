@@ -18,7 +18,6 @@
       ! You might need to start in timestep 1 because the intialization
       ! is done after user check is called in step 0. So maybe fix that 
       ! before proceeding to do anything regarding post processing
-#ifdef LOSS
       if (istep.eq.1) then
               if (ifscompress)   call compress_inputs()
               call sleep(10) 
@@ -27,7 +26,7 @@
       endif 
 
       if (ifinsitucompress) call trunc_data() 
-#endif
+
       return
       end subroutine
 !
@@ -455,11 +454,11 @@ c       write debugging values
 c       ===============================================
 c       Perform lossless compression of truncated data
 c       ===============================================
-#ifdef LOSS
+
         !Write the fields into a file
-        call adios2_update(lglel,pm1, vx_hat_trc, 
-     &   vy_hat_trc, vz_hat_trc, t)
-#endif
+        call adios2_update_lossy(lglel,pm1, vx_hat_trc, 
+     &   vy_hat_trc, vz_hat_trc, t, 1)
+
         enddo
 
       return
@@ -617,11 +616,10 @@ c       ========================================
 c       Fill the pressure array with zeros, just in case       
         call rzero(pm1,lx1*ly1*lz1*lelt)
 c       Adios writes the pressure in mesh 1, so read it in pm1 
-#ifdef LOSS
         call adios2_read(lglelr,pm1,vx_hat_trc,vy_hat_trc,vz_hat_trc,
      &                   nvals,nelv,nelb,
      &                   nelgv,nelgt,nekcomm,trim(fname))
-#endif
+
 
 c       Map the pressure to mesh 2 before transforming to phys space
 c       copy the corresponding entries from pm1 to prhat
@@ -719,6 +717,7 @@ c         write debugging values
 !!       should be used for debugging purposes mostly.
       subroutine trunc_data()
       implicit none
+      include 'mpif.h'
       include 'SIZE'    ! for size information such as lx1, etc ...
       include 'WZ'      ! for zgm1
       include 'INPUT'   ! for user inputs from par (I think) 
@@ -729,7 +728,8 @@ c         write debugging values
 
 
       include 'IOTRUNCD' ! THIS IS MINE, include here the integer a
-
+      real decompTime, start
+      common /decompress/ decompTime
 c     Declare variables -------------------
 
 c     counter for printing debbuging info
@@ -906,16 +906,16 @@ c       ============================================
 
 c ---------------------------------------------------------------
 c       This piece is for debugging, uncumment if needed        
-        if (truncio) then
-          !!write(*,*) 'copying values since it is step: ', istep       
-          call copy(vx_trc_temp,vx_trc,nxyze)
-          call copy(vx_hat_trc_temp,vx_hat_trc,nxyze)
-          call copy(vy_trc_temp,vy_trc,nxyze)
-          call copy(vy_hat_trc_temp,vy_hat_trc,nxyze)
-          call copy(vz_trc_temp,vz_trc,nxyze)
-          call copy(vz_hat_trc_temp,vz_hat_trc,nxyze)
-          call copy(pr_trc_temp,pr_trc,lx2*lx2*lx2*nelv)
-        endif
+c        if (truncio) then
+c          !!write(*,*) 'copying values since it is step: ', istep       
+c          call copy(vx_trc_temp,vx_trc,nxyze)
+c          call copy(vx_hat_trc_temp,vx_hat_trc,nxyze)
+c          call copy(vy_trc_temp,vy_trc,nxyze)
+c          call copy(vy_hat_trc_temp,vy_hat_trc,nxyze)
+c          call copy(vz_trc_temp,vz_trc,nxyze)
+c          call copy(vz_hat_trc_temp,vz_hat_trc,nxyze)
+c          call copy(pr_trc_temp,pr_trc,lx2*lx2*lx2*nelv)
+c        endif
 c ---------------------------------------------------------------        
 
 c       Get the error vectors that can be visualized in visit
@@ -1014,15 +1014,36 @@ c     $     truncvecz,pr,t,'crt')
 c      call outpost(vx,vy,
 c     $     vz,pr,t,'fll')
 c ----------------------------------------------------------
+        start = MPI_Wtime ( )
+
+c       ===================
+c       Reverse truncation
+c       ===================
+
+c       transform the read field into physical space u=V*u_hat
+c       For vx
+        call trunc_apply_op(vx_trc_temp,vx_hat_trc,spec_trans_v,if3d,nx)
+c       For vy
+        call trunc_apply_op(vy_trc_temp,vy_hat_trc,spec_trans_v,if3d,nx)
+c       For vz
+        call trunc_apply_op(vz_trc_temp,vz_hat_trc,spec_trans_v,if3d,nx)
+c       For Pressure
+        call trunc_apply_op(pr_trc_temp,pr_hat_trc,spec_trans_v_pr,if3d,
+     &                      nx_pr)
+
+        do e=1,nelv
+              call copy  (pm1(1,1,1,e),pr_trc_temp(1,1,1,e),lx2*lx2*lx2)
+        enddo
 
 c       =============================================
 c       Perform the lossless compression with ADIOS2
 c       =============================================
-#ifdef LOSS
+        decompTime = decompTime + MPI_Wtime ( ) - start
+        if(nid_.eq.0)  write (*,*) "decomp:", decompTime
         !pm1 is the truncated coefficients mapped into velocity mesh
-        call adios2_update(lglel,pm1, vx_hat_trc, 
-     &   vy_hat_trc, vz_hat_trc, t)
-#endif
+        call catalyst_update2(vx_trc_temp, 
+     &   vy_trc_temp, vz_trc_temp, pm1)
+
       endif    
 
 c     ===================
@@ -1053,11 +1074,10 @@ c       ========================================
 c       fill the pressure array with zeros, just in case       
         call rzero(pm1,lx1*ly1*lz1*lelt)
 c       Adios writes the pressure in mesh 1, so read it in pm1 
-#ifdef LOSS
         call adios2_read(lglelr,pm1,vx_hat_trc,vy_hat_trc,vz_hat_trc,
      &                   nvals,nelv,nelb,
      &                   nelgv,nelgt,nekcomm,trim(fname))
-#endif
+
 c       Map the pressure to mesh 2 before transforming to phys space
 c       copy the corresponding entries from pm1 to prhat
         do e=1,nelv
